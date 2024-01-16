@@ -48,6 +48,9 @@ func main() {
 	// Start the child process
 	start := time.Now()
 	pid, err := syscall.ForkExec(path, cmd, &procAttr)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Block all signals for the parent process, but let the child handle them
 	signal.Ignore(syscall.SIGINT, syscall.SIGQUIT)
