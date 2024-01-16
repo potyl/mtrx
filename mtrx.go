@@ -87,12 +87,14 @@ func main() {
  * Waits for the given process and returns the status and rusage.
  */
 func waitPid(pid int, waitStatus *syscall.WaitStatus, rusage *syscall.Rusage) (childPid int, err error) {
-	childPid, err = syscall.Wait4(pid, waitStatus, 0, rusage)
-	for err == syscall.EINTR {
+	for {
 		childPid, err = syscall.Wait4(pid, waitStatus, 0, rusage)
+		if err != syscall.EINTR {
+			return childPid, err
+		}
 	}
+}
 
-	return childPid, err
 }
 
 /**
