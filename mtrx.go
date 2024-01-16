@@ -9,11 +9,18 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	_ "unsafe"
 )
 
 // This is what `time` and `sh` return for processes that exit with a signal.
 // Their return value is: SIGNAL + SIGNALLED_OFFSET
 const SIGNALLED_OFFSET = 128
+
+//go:linkname procStateSysUsage os/exec.(*ProcessState).sysUsage
+func sysUsage(ps *os.ProcessState) syscall.Rusage
+
+// //go:linkname sysUsage os.exec.(*ProcessState).sysUsage
+// func sysUsage(*os.ProcessState) any
 
 func main() {
 	if len(os.Args) == 1 {
@@ -38,16 +45,20 @@ func main() {
 	}
 
 	// Build the process attribute
-	procAttr := syscall.ProcAttr{
+	procAttr := os.ProcAttr{
 		Dir:   pwd,
 		Env:   os.Environ(),
-		Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd()},
+		Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
 		Sys:   nil,
 	}
 
 	// Start the child process
 	start := time.Now()
-	pid, err := syscall.ForkExec(path, cmd, &procAttr)
+	process, err := os.StartProcess(path, cmd, &procAttr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// pid := process.Pid
 
 	// Block all signals for the parent process, but let the child handle them
 	signal.Ignore(syscall.SIGINT, syscall.SIGQUIT)
@@ -55,10 +66,15 @@ func main() {
 	// Wait for the child process
 	var waitStatus syscall.WaitStatus
 	var rusage syscall.Rusage
-	if child_pid, err := waitPid(pid, &waitStatus, &rusage); err != nil {
+	// if child_pid, err := waitPid(pid, &waitStatus, &rusage); err != nil {
+	// 	log.Fatal(err)
+	// } else if child_pid != pid {
+	// 	log.Fatalf("Waited for PID %v but got PID %v\n", pid, child_pid)
+	// }
+	processState, err := process.Wait()
+	rusage = sysUsage(processState)
+	if err != nil {
 		log.Fatal(err)
-	} else if child_pid != pid {
-		log.Fatalf("Waited for PID %v but got PID %v\n", pid, child_pid)
 	}
 	elapsed := time.Now().Sub(start)
 
@@ -84,12 +100,12 @@ func main() {
  * Waits for the given process and returns the status and rusage.
  */
 func waitPid(pid int, waitStatus *syscall.WaitStatus, rusage *syscall.Rusage) (childPid int, err error) {
-	childPid, err = syscall.Wait4(pid, waitStatus, 0, rusage)
-	for err == syscall.EINTR {
+	for {
 		childPid, err = syscall.Wait4(pid, waitStatus, 0, rusage)
+		if err != syscall.EINTR {
+			return childPid, err
+		}
 	}
-
-	return childPid, err
 }
 
 /**
