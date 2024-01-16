@@ -95,14 +95,37 @@ func waitPid(pid int, waitStatus *syscall.WaitStatus, rusage *syscall.Rusage) (c
 	}
 }
 
+func microToMillis(time syscall.Timeval) float64 {
+	t := float64(time.Sec) + (float64(time.Usec) / float64(1_000_000))
+	return t
 }
 
 /**
  * Display a summary of the process' execution.
  */
 func summary(waitStatus *syscall.WaitStatus, rusage *syscall.Rusage, elapsed time.Duration) {
-	fmt.Printf("User CPU time: %v; %v\n", rusage.Utime.Sec, rusage.Utime.Usec)
-	fmt.Printf("Sys  CPU time: %v; %v\n", rusage.Stime.Sec, rusage.Stime.Usec)
-	fmt.Printf("elapsed %v\n", elapsed)
-	fmt.Printf("Exit status = %v\n", waitStatus.ExitStatus())
+	summaryField("time.user", "%0.3fs", microToMillis(rusage.Utime))
+	summaryField("time.sys", "%0.3fs", microToMillis(rusage.Stime))
+	summaryField("time.clock", "%0.3fs", elapsed.Seconds())
+	fmt.Println()
+
+	summaryField("sys.max_rss", "%v KiB", rusage.Maxrss)
+	summaryField("sys.minor_page_faults", "%v", rusage.Minflt)
+	summaryField("sys.major_page_faults", "%v", rusage.Majflt)
+	fmt.Println()
+
+	summaryField("sys.fs_input", "%v", rusage.Inblock)
+	summaryField("sys.fs_output", "%v", rusage.Oublock)
+	fmt.Println()
+
+	summaryField("sys.context_switch_involuntarily", "%v", rusage.Nivcsw)
+	summaryField("sys.context_switch_voluntarily", "%v", rusage.Nvcsw)
+	fmt.Println()
+
+	summaryField("exit.status", "%v", waitStatus.ExitStatus())
+}
+
+func summaryField(field string, format string, value any) {
+	valueFormatted := fmt.Sprintf(format, value)
+	fmt.Printf("%-35s %10s\n", field+":", valueFormatted)
 }
