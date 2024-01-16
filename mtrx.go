@@ -63,7 +63,7 @@ func main() {
 	} else if child_pid != pid {
 		log.Fatalf("Waited for PID %v but got PID %v\n", pid, child_pid)
 	}
-	elapsed := time.Now().Sub(start)
+	elapsed := time.Since(start)
 
 	// Display a summary
 	summary(&waitStatus, &rusage, elapsed)
