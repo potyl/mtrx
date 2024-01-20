@@ -5,12 +5,31 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Sleep 3",
+      "name": "otlp",
       "type": "go",
       "request": "launch",
       "mode": "auto",
-      "program": "mtrx.go",
-      "args": ["sleep", "3"]
-    }
+      "program": "cmd/mtrx/mtrx.go",
+      "args": ["sleep", "3"],
+      "env": {
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_METRICS_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_INSECURE": "true",
+        "OTEL_EXPORTER_OTLP_METRICS_INSECURE": "true",
+      }
+    },
+    {
+      "name": "console",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "cmd/mtrx/mtrx.go",
+      "args": ["sleep", "3"],
+      "env": {
+        "OTEL_TRACES_EXPORTER": "console",
+        "OTEL_METRICS_EXPORTER": "console",
+      }
+    },
+
   ]
 }
