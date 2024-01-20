@@ -15,6 +15,45 @@ import (
 // Their return value is: SIGNAL + SIGNALLED_OFFSET
 const SIGNALLED_OFFSET = 128
 
+type Metrics struct {
+	time struct {
+		user  float64
+		sys   float64
+		clock float64
+	}
+
+	sys struct {
+		maxRss     int64
+		pageFaults struct {
+			minor int64
+			major int64
+		}
+	}
+
+	fs struct {
+		input  int64
+		output int64
+	}
+
+	contextSwitch struct {
+		involuntarily int64
+		voluntarily   int64
+	}
+
+	exit struct {
+		status     int
+		signal     int
+		stopSignal int
+		trapCause  int
+
+		exited    bool
+		signaled  bool
+		stopped   bool
+		continued bool
+		coreDump  bool
+	}
+}
+
 func main() {
 	if len(os.Args) == 1 {
 		fmt.Printf("Usage: %v CMD [ARG]...\n", filepath.Base(os.Args[0]))
@@ -66,7 +105,8 @@ func main() {
 	elapsed := time.Since(start)
 
 	// Display a summary
-	summary(&waitStatus, &rusage, elapsed)
+	metrics := newMetrics(&waitStatus, &rusage, elapsed)
+	summary(metrics)
 
 	// Propagate the child's exit status
 	var status = 0
@@ -103,29 +143,77 @@ func microToMillis(time syscall.Timeval) float64 {
 /**
  * Display a summary of the process' execution.
  */
-func summary(waitStatus *syscall.WaitStatus, rusage *syscall.Rusage, elapsed time.Duration) {
-	summaryField("time.user", "%0.3fs", microToMillis(rusage.Utime))
-	summaryField("time.sys", "%0.3fs", microToMillis(rusage.Stime))
-	summaryField("time.clock", "%0.3fs", elapsed.Seconds())
+func summary(metrics Metrics) {
+	summaryField("time.user", "%0.3fs", metrics.time.user)
+	summaryField("time.sys", "%0.3fs", metrics.time.sys)
+	summaryField("time.clock", "%0.3fs", metrics.time.clock)
 	fmt.Println()
 
-	summaryField("sys.max_rss", "%v KiB", rusage.Maxrss)
-	summaryField("sys.minor_page_faults", "%v", rusage.Minflt)
-	summaryField("sys.major_page_faults", "%v", rusage.Majflt)
+	summaryField("sys.max_rss", "%v KiB", metrics.sys.maxRss)
+	summaryField("sys.page_faults.minor", "%v", metrics.sys.pageFaults.minor)
+	summaryField("sys.page_faults.major", "%v", metrics.sys.pageFaults.major)
 	fmt.Println()
 
-	summaryField("sys.fs_input", "%v", rusage.Inblock)
-	summaryField("sys.fs_output", "%v", rusage.Oublock)
+	summaryField("sys.fs.input", "%v", metrics.fs.input)
+	summaryField("sys.fs.output", "%v", metrics.fs.output)
 	fmt.Println()
 
-	summaryField("sys.context_switch_involuntarily", "%v", rusage.Nivcsw)
-	summaryField("sys.context_switch_voluntarily", "%v", rusage.Nvcsw)
+	summaryField("sys.context_switch.involuntarily", "%v", metrics.contextSwitch.involuntarily)
+	summaryField("sys.context_switch.voluntarily", "%v", metrics.contextSwitch.voluntarily)
 	fmt.Println()
 
-	summaryField("exit.status", "%v", waitStatus.ExitStatus())
+	summaryField("exit.status", "%v", metrics.exit.status)
+	if metrics.exit.signaled {
+		summaryField("exit.signal", "%v", metrics.exit.signal)
+	}
+
+	if metrics.exit.stopped {
+		summaryField("exit.stop_signal", "%v", metrics.exit.stopSignal)
+	}
+
+	// I'm not sure that continued and trapCause are related
+	if metrics.exit.continued {
+		summaryField("exit.trap_cause", "%v", metrics.exit.trapCause)
+	}
+
+	summaryField("exit.exited", "%v", metrics.exit.exited)
+	summaryField("exit.signaled", "%v", metrics.exit.signaled)
+	summaryField("exit.stopped", "%v", metrics.exit.stopped)
+	summaryField("exit.continued", "%v", metrics.exit.continued)
+	summaryField("exit.core_dump", "%v", metrics.exit.coreDump)
 }
 
 func summaryField(field string, format string, value any) {
 	valueFormatted := fmt.Sprintf(format, value)
 	fmt.Printf("%-35s %10s\n", field+":", valueFormatted)
+}
+
+func newMetrics(waitStatus *syscall.WaitStatus, rusage *syscall.Rusage, elapsed time.Duration) Metrics {
+	metrics := Metrics{}
+	metrics.time.user = microToMillis(rusage.Utime)
+	metrics.time.sys = microToMillis(rusage.Stime)
+	metrics.time.clock = elapsed.Seconds()
+
+	metrics.sys.maxRss = rusage.Maxrss
+	metrics.sys.pageFaults.minor = rusage.Minflt
+	metrics.sys.pageFaults.major = rusage.Majflt
+
+	metrics.fs.input = rusage.Inblock
+	metrics.fs.output = rusage.Oublock
+
+	metrics.contextSwitch.involuntarily = rusage.Nivcsw
+	metrics.contextSwitch.voluntarily = rusage.Nvcsw
+
+	metrics.exit.status = waitStatus.ExitStatus()
+	metrics.exit.signal = int(waitStatus.Signal())
+	metrics.exit.stopSignal = int(waitStatus.StopSignal())
+	metrics.exit.trapCause = waitStatus.TrapCause()
+
+	metrics.exit.exited = waitStatus.Exited()
+	metrics.exit.signaled = waitStatus.Signaled()
+	metrics.exit.stopped = waitStatus.Stopped()
+	metrics.exit.continued = waitStatus.Continued()
+	metrics.exit.coreDump = waitStatus.CoreDump()
+
+	return metrics
 }
