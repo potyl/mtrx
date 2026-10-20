@@ -20,6 +20,7 @@ type ProcessResult struct {
 func TimeForkExec(path string, cmd []string) (*ProcessResult, error) {
 	// Build the process attribute
 	procAttr := syscall.ProcAttr{
+		Env:   os.Environ(),
 		Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd()},
 	}
 
