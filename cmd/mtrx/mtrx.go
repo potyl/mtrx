@@ -48,12 +48,12 @@ func exec(cmd []string) int {
 		}
 	}()
 
-	// Start a span
-	_, span := openTelemetry.StartSpan(ctx, strings.Join(cmd, " "))
+	// Start a span, its parent is taken from the environment (TRACEPARENT) if present
+	spanCtx, span := openTelemetry.StartSpan(mtrxotel.ContextFromEnv(ctx), strings.Join(cmd, " "))
 	defer span.End()
 
-	// Start the child process
-	process, err := mtrxproc.InstrumentProcess(cmd)
+	// Start the child process with our span as its parent
+	process, err := mtrxproc.InstrumentProcess(cmd, mtrxotel.EnvironWithContext(spanCtx))
 	if err != nil {
 		span.SetStatus(codes.Error, "Child process execution and waiting encountered an error")
 		span.RecordError(err)
