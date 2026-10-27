@@ -54,3 +54,18 @@ The program can be configured through the standard OpenTelemetry environment var
 export OTEL_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://opentelemetry-collector.opentelemetry.svc:4318
 ```
+
+### Trace propagation
+
+The span's parent is read from the [environment variable carriers](https://opentelemetry.io/docs/specs/otel/context/env-carriers/)
+`TRACEPARENT`, `TRACESTATE` and `BAGGAGE`. This links independent `mtrx` invocations into a single trace, for
+instance all the commands of a CI run:
+
+```bash
+export TRACEPARENT=00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
+mtrx docker compose pull
+mtrx docker compose up -d
+```
+
+The child process receives these variables set to the `mtrx` span, so any instrumented program it runs (including
+`mtrx` itself) records its spans as children of the `mtrx` span.

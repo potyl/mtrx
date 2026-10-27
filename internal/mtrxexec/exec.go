@@ -16,11 +16,11 @@ type ProcessResult struct {
 	Pid     int
 }
 
-// Executes the given command, waits for the process and returns some metrics about the child process.
-func TimeForkExec(path string, cmd []string) (*ProcessResult, error) {
+// Executes the given command with the given environment, waits for the process and returns some metrics about the child process.
+func TimeForkExec(path string, cmd []string, env []string) (*ProcessResult, error) {
 	// Build the process attribute
 	procAttr := syscall.ProcAttr{
-		Env:   os.Environ(),
+		Env:   env,
 		Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd()},
 	}
 

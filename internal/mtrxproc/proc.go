@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// Executes the given command, waits for the process and collects instrumentation data about the child process.
-func InstrumentProcess(cmd []string) (*mtrxtypes.Process, error) {
+// Executes the given command with the given environment, waits for the process and collects instrumentation data about the child process.
+func InstrumentProcess(cmd []string, env []string) (*mtrxtypes.Process, error) {
 	// Find the executable's full path
 	path, err := exec.LookPath(cmd[0])
 	if err != nil {
@@ -19,7 +19,7 @@ func InstrumentProcess(cmd []string) (*mtrxtypes.Process, error) {
 	}
 
 	// Start the child process
-	process, err := mtrxexec.TimeForkExec(path, cmd)
+	process, err := mtrxexec.TimeForkExec(path, cmd, env)
 	if err != nil {
 		return nil, err
 	}
