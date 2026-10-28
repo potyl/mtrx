@@ -1,6 +1,8 @@
 module mtrx
 
-go 1.21.0
+go 1.26.0
+
+toolchain go1.26.9
 
 require (
 	go.opentelemetry.io/otel v1.22.0
