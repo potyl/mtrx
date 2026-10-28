@@ -133,6 +133,6 @@ These parents only exist once the run is exported, from the last job of the work
         run: mtrx --export-github-run
 ```
 
-`mtrx --export-github-run` reads the run and its jobs from the GitHub API and exports, under the service `ci`, a root
+`mtrx --export-github-run` reads the run and its jobs from the GitHub API and exports, under the service `github-actions`, a root
 span for the run and a span per job with their start and end times. A job that didn't succeed gets an error status,
 and so does the run.

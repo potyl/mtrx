@@ -140,7 +140,7 @@ func exportGitHubRun() int {
 		exportErr = errors.Join(exportErr, err)
 	}))
 
-	openTelemetry, err := mtrxotel.New(ctx, "ci", run.Attributes()...)
+	openTelemetry, err := mtrxotel.New(ctx, "github-actions", run.Attributes()...)
 	if err != nil {
 		log.Print(err)
 		return 1
