@@ -50,12 +50,12 @@ func TestCommandMetricsAreHistograms(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		attrs    attribute.Set
+		cpuMode  string
 		expected float64
 	}{
-		{"mtrx.command.duration", *attribute.EmptySet(), 42.5},
-		{"mtrx.command.cpu.time", attribute.NewSet(attribute.String("cpu.mode", "user")), 30},
-		{"mtrx.command.cpu.time", attribute.NewSet(attribute.String("cpu.mode", "system")), 2.5},
+		{"mtrx.command.duration", "", 42.5},
+		{"mtrx.command.cpu.time", "user", 30},
+		{"mtrx.command.cpu.time", "system", 2.5},
 	}
 	for _, test := range tests {
 		histogram, ok := metrics[test.name].(metricdata.Histogram[float64])
@@ -64,15 +64,15 @@ func TestCommandMetricsAreHistograms(t *testing.T) {
 		}
 		found := false
 		for _, point := range histogram.DataPoints {
-			if point.Attributes.Equals(&test.attrs) {
+			if cpuMode, _ := point.Attributes.Value("cpu.mode"); cpuMode.AsString() == test.cpuMode {
 				found = true
 				if point.Count != 1 || point.Sum != test.expected {
-					t.Errorf("%v %v: got count %v and sum %v, expected a single %v", test.name, test.attrs.Encoded(attribute.DefaultEncoder()), point.Count, point.Sum, test.expected)
+					t.Errorf("%v %v: got count %v and sum %v, expected a single %v", test.name, test.cpuMode, point.Count, point.Sum, test.expected)
 				}
 			}
 		}
 		if !found {
-			t.Errorf("%v: no data point with the attributes %v", test.name, test.attrs.Encoded(attribute.DefaultEncoder()))
+			t.Errorf("%v: no data point with the cpu.mode %q", test.name, test.cpuMode)
 		}
 	}
 
@@ -88,5 +88,28 @@ func TestCommandMetricsAreHistograms(t *testing.T) {
 func TestMemoryBuckets(t *testing.T) {
 	if first, last := memoryBuckets[0], memoryBuckets[len(memoryBuckets)-1]; first != 1<<20 || last != 1<<35 {
 		t.Errorf("got buckets from %v to %v, expected from 1 MiB to 32 GiB", first, last)
+	}
+}
+
+func TestMetricAttributesHaveALowCardinality(t *testing.T) {
+	resource := sdkres.NewSchemaless(
+		attribute.String("github.repository", "cloudbeds/mfd"),
+		attribute.String("github.job", "phpstan"),
+		attribute.String("runner.name", "x16-core-abc"),
+		attribute.Int("process.pid", 1234),
+		attribute.String("process.owner", "runner"),
+	)
+	process := newTestProcess()
+	process.Metrics.ExitCode = 2
+
+	got := attribute.NewSet(metricAttributes(resource, process)...)
+	expected := attribute.NewSet(
+		attribute.String("github.repository", "cloudbeds/mfd"),
+		attribute.String("github.job", "phpstan"),
+		attribute.String("process.command_line", "make build"),
+		attribute.Int("process.exit.code", 2),
+	)
+	if !got.Equals(&expected) {
+		t.Errorf("got %v, expected %v", got.Encoded(attribute.DefaultEncoder()), expected.Encoded(attribute.DefaultEncoder()))
 	}
 }

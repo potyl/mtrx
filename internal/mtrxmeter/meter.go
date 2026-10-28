@@ -2,11 +2,14 @@ package mtrxmeter
 
 import (
 	"context"
+	"strings"
+
 	"mtrx/internal/mtrxtypes"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	sdkres "go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
 // Bucket boundaries in seconds, from sub-second commands up to the hour long ones of a CI pipeline
@@ -21,16 +24,44 @@ var memoryBuckets = func() []float64 {
 	return buckets
 }()
 
-func withAttributes(resource *sdkres.Resource, extras ...attribute.KeyValue) metric.MeasurementOption {
-	attributes := resource.Attributes()
-	attributes = append(attributes, extras...)
-	return metric.WithAttributes(attributes...)
+// The resource attributes kept on the metrics. Every combination of attribute values is a time
+// series, so unlike the span the metrics only get the attributes with a low cardinality: no process
+// ids, users or runner names, which are different for each execution.
+var metricResourceKeys = map[attribute.Key]bool{
+	"github.repository": true,
+	"github.ref.name":   true,
+	"github.event.name": true,
+	"github.job":        true,
+	"runner.arch":       true,
+	"runner.os":         true,
+}
+
+// The attributes of the metrics of a command execution: the low cardinality resource attributes,
+// the command line and its exit code.
+func metricAttributes(resource *sdkres.Resource, process *mtrxtypes.Process) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{}
+	for _, attr := range resource.Attributes() {
+		if metricResourceKeys[attr.Key] {
+			attrs = append(attrs, attr)
+		}
+	}
+
+	commandLine := strings.Join(append([]string{process.Command}, process.CommandArgs...), " ")
+	return append(
+		attrs,
+		semconv.ProcessCommandLine(commandLine),
+		attribute.Int("process.exit.code", process.Metrics.ExitCode),
+	)
 }
 
 // Records the measurements of a command execution. Each execution is a single sample of its
 // measurements, so they are histograms: their distribution over many executions is what matters.
 func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Resource, process *mtrxtypes.Process) error {
 	metrics := process.Metrics
+	attrs := metricAttributes(resource, process)
+	withAttributes := func(extras ...attribute.KeyValue) metric.MeasurementOption {
+		return metric.WithAttributes(append(extras, attrs...)...)
+	}
 
 	duration, err := meter.Float64Histogram(
 		"mtrx.command.duration",
@@ -41,7 +72,7 @@ func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Re
 	if err != nil {
 		return err
 	}
-	duration.Record(ctx, metrics.Time.Clock, withAttributes(resource))
+	duration.Record(ctx, metrics.Time.Clock, withAttributes())
 
 	cpuTime, err := meter.Float64Histogram(
 		"mtrx.command.cpu.time",
@@ -52,8 +83,8 @@ func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Re
 	if err != nil {
 		return err
 	}
-	cpuTime.Record(ctx, metrics.Time.User, withAttributes(resource, attribute.String("cpu.mode", "user")))
-	cpuTime.Record(ctx, metrics.Time.Sys, withAttributes(resource, attribute.String("cpu.mode", "system")))
+	cpuTime.Record(ctx, metrics.Time.User, withAttributes(attribute.String("cpu.mode", "user")))
+	cpuTime.Record(ctx, metrics.Time.Sys, withAttributes(attribute.String("cpu.mode", "system")))
 
 	memory, err := meter.Int64Histogram(
 		"mtrx.command.memory.max",
@@ -65,7 +96,7 @@ func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Re
 		return err
 	}
 	// `rusage` has the data in kilobytes
-	memory.Record(ctx, metrics.Sys.MaxRss*1024, withAttributes(resource))
+	memory.Record(ctx, metrics.Sys.MaxRss*1024, withAttributes())
 
 	return nil
 }
