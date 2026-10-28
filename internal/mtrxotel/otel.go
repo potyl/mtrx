@@ -3,6 +3,7 @@ package mtrxotel
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -60,7 +61,12 @@ func New(ctx context.Context, serviceName string, attrs ...attribute.KeyValue) (
 	if err != nil {
 		return nil, err
 	}
-	metricsReader := sdkmetric.NewManualReader()
+	// The reader decides the temporality, it must follow the exporter's which honors
+	// OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+	metricsReader := sdkmetric.NewManualReader(
+		sdkmetric.WithTemporalitySelector(metricsExporter.Temporality),
+		sdkmetric.WithAggregationSelector(metricsExporter.Aggregation),
+	)
 	meterProvider := newMeterProvider(metricsReader, resource)
 	meter := meterProvider.Meter((""))
 	otel.SetMeterProvider(meterProvider)
@@ -82,15 +88,20 @@ func New(ctx context.Context, serviceName string, attrs ...attribute.KeyValue) (
 	return &openTelemetry, nil
 }
 
-func (openTelemetry *OpenTelemetry) exportMetrics(ctx context.Context) {
+func (openTelemetry *OpenTelemetry) exportMetrics(ctx context.Context) error {
 	var collectedMetrics metricdata.ResourceMetrics
-	openTelemetry.metricsReader.Collect(ctx, &collectedMetrics)
-	openTelemetry.metricsExporter.Export(ctx, &collectedMetrics)
+	if err := openTelemetry.metricsReader.Collect(ctx, &collectedMetrics); err != nil {
+		return fmt.Errorf("metrics collect: %w", err)
+	}
+	if err := openTelemetry.metricsExporter.Export(ctx, &collectedMetrics); err != nil {
+		return fmt.Errorf("metrics export: %w", err)
+	}
+	return nil
 }
 
 func (openTelemetry *OpenTelemetry) Shutdown(ctx context.Context) (err error) {
 	// We need to export the metrics by hand
-	openTelemetry.exportMetrics(ctx)
+	err = openTelemetry.exportMetrics(ctx)
 
 	shutdowns := []func(context.Context) error{
 		openTelemetry.tracerProvider.Shutdown,

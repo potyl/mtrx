@@ -29,22 +29,46 @@ No Prometheus exporter is required nor expected.
 
 ### Metrics and traces
 
-The command sends metrics and traces.
+Each execution sends a span and the following metrics. An execution is a single sample, so they are histograms: they
+give the distribution of the measurements over many executions.
+
+| Metric                    | Unit | Description                                       |
+| ------------------------- | ---- | ------------------------------------------------- |
+| `mtrx.command.duration`   | `s`  | Wall clock time of the command                    |
+| `mtrx.command.cpu.time`   | `s`  | CPU time, by `cpu.mode`: `user` or `system`       |
+| `mtrx.command.memory.max` | `By` | Maximum resident set size                         |
+
 The utility is expected to be executed from CI, mainly GitHub and the data collected is annotated with GitHub's CI information:
 
-| Environment variable | Label                |
-| -------------------- | ------               |
-| GITHUB_REF_TYPE      |  `github.ref.type`   |
-| GITHUB_REF_NAME      |  `github.ref.name`   |
-| GITHUB_REF           |  `github.ref`        |
-| GITHUB_JOB           |  `github.job`        |
-| GITHUB_ACTOR         |  `github.actor`      |
-| GITHUB_EVENT_NAME    |  `github.event.name` |
-| RUNNER_ARCH          | `runner.arch`        |
-| RUNNER_ENVIRONMENT   | `runner.environment` |
-| RUNNER_NAME          | `runner.name`        |
-| RUNNER_OS            | `runner.os`          |
-| RUNNER_USER          | `runner.user`        |
+| Environment variable | Attribute            | On the metrics |
+| -------------------- | -------------------- | -------------- |
+| GITHUB_REPOSITORY    | `github.repository`  | yes            |
+| GITHUB_REF_TYPE      | `github.ref.type`    |                |
+| GITHUB_REF_NAME      | `github.ref.name`    |                |
+| GITHUB_REF           | `github.ref`         |                |
+| GITHUB_JOB           | `github.job`         | yes            |
+| GITHUB_ACTOR         | `github.actor`       |                |
+| GITHUB_EVENT_NAME    | `github.event.name`  | yes            |
+| RUNNER_ARCH          | `runner.arch`        | yes            |
+| RUNNER_ENVIRONMENT   | `runner.environment` |                |
+| RUNNER_NAME          | `runner.name`        |                |
+| RUNNER_OS            | `runner.os`          | yes            |
+| RUNNER_USER          | `runner.user`        |                |
+
+`vcs.ref.base.name` is the branch the code lands in: the target branch of a pull request (`GITHUB_BASE_REF`) or of a
+merge queue entry, otherwise `GITHUB_REF_NAME`. It's on the metrics too, so the executions of a branch can be compared
+whether they come from pushes, pull requests or the merge queue.
+
+The metrics also have the command line (`process.command_line`) and its exit code (`process.exit.code`). Every
+combination of attribute values is a time series, so the metrics only get the attributes with a low cardinality. The
+span gets all of them, plus the process ids and the page faults, context switches and file system blocks.
+
+For instance the median duration of a build on `main` over a week:
+
+```promql
+histogram_quantile(0.5, sum by (le) (increase(mtrx_command_duration_bucket{
+  github_repository="cloudbeds/mfd", vcs_ref_base_name="main", process_command_line="docker compose build"}[1w])))
+```
 
 ### Configuration
 
@@ -54,6 +78,17 @@ The program can be configured through the standard OpenTelemetry environment var
 export OTEL_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://opentelemetry-collector.opentelemetry.svc:4318
 ```
+
+Each `mtrx` process sends the metrics of a single execution. Sent as cumulative values (the default), the executions
+with the same attributes look like a series that restarts each time. Send them as deltas instead:
+
+```bash
+export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+```
+
+A backend that only accepts cumulative values, like Prometheus or Mimir, needs a collector adding up the deltas with
+the [deltatocumulative](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/deltatocumulativeprocessor)
+processor. It keeps the totals in memory, so all the deltas of a series must reach the same collector instance.
 
 ### Trace propagation
 

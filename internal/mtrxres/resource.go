@@ -3,7 +3,7 @@ package mtrxres
 import (
 	"mtrx/internal/mtrxtypes"
 	"os"
-	"strings"
+	"regexp"
 
 	"go.opentelemetry.io/otel/attribute"
 	sdkres "go.opentelemetry.io/otel/sdk/resource"
@@ -17,7 +17,7 @@ import (
 func NewProcessRuntimeResource(process *mtrxtypes.Process) *sdkres.Resource {
 	attrs := []attribute.KeyValue{
 		semconv.ProcessCommand(process.Command),
-		semconv.ProcessCommandArgs(strings.Join(process.CommandArgs, " ")),
+		semconv.ProcessCommandArgs(process.CommandArgs...),
 		semconv.ProcessExecutableName(process.Executable.Name),
 		semconv.ProcessExecutablePath(process.Executable.Path),
 		semconv.ProcessOwner(process.Owner),
@@ -41,7 +41,28 @@ func NewGitHubResource() *sdkres.Resource {
 		envKeyValue("GITHUB_ACTOR", "github.actor"),           // "username"
 		envKeyValue("GITHUB_EVENT_NAME", "github.event.name"), // "workflow_dispatch"
 	}
+	if baseRefName := baseRefName(); baseRefName != "" {
+		attrs = append(attrs, attribute.String("vcs.ref.base.name", baseRefName))
+	}
 	return sdkres.NewSchemaless(attrs...)
+}
+
+// The ref of a merge queue entry: gh-readonly-queue/<base branch>/pr-<number>-<sha>
+var mergeQueueRefName = regexp.MustCompile(`^gh-readonly-queue/(.+)/pr-\d+-[0-9a-f]+$`)
+
+// Returns the name of the branch the code lands in: the target branch of a pull request or of a
+// merge queue entry, otherwise the ref itself. Unlike GITHUB_REF_NAME ("123/merge" for a pull
+// request) it groups the runs of all the changes made to a branch.
+func baseRefName() string {
+	if baseRef := os.Getenv("GITHUB_BASE_REF"); baseRef != "" {
+		return baseRef
+	}
+
+	refName := os.Getenv("GITHUB_REF_NAME")
+	if match := mergeQueueRefName.FindStringSubmatch(refName); match != nil {
+		return match[1]
+	}
+	return refName
 }
 
 //

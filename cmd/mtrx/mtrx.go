@@ -62,9 +62,9 @@ func exec(cmd []string) int {
 		log.Fatal(err)
 	}
 	defer func() {
-		err := openTelemetry.Shutdown(ctx)
-		if err != nil {
-			log.Fatal(err)
+		// A telemetry failure is reported but doesn't change the exit status of the command
+		if err := openTelemetry.Shutdown(ctx); err != nil {
+			log.Print(err)
 		}
 	}()
 
@@ -104,13 +104,14 @@ func exec(cmd []string) int {
 
 	// Enhance the span with attributes based on process
 	span.SetAttributes(resource.Attributes()...)
+	span.SetAttributes(mtrxmeter.UsageAttributes(process)...)
 
 	// TODO add
 	// - https://opentelemetry.io/docs/specs/semconv/resource/host/
 	// - https://opentelemetry.io/docs/specs/semconv/resource/os/
 
 	meter := openTelemetry.Meter()
-	if err := mtrxmeter.OsProcessMetrics(ctx, meter, resource, process); err != nil {
+	if err := mtrxmeter.CommandMetrics(ctx, meter, resource, process); err != nil {
 		log.Fatal(err)
 	}
 
