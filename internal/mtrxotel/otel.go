@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -27,16 +28,18 @@ type OpenTelemetry struct {
 	meter           metric.Meter
 }
 
-func New(ctx context.Context, serviceName string) (*OpenTelemetry, error) {
+// Creates the OpenTelemetry objects, the given attributes are added to the resource that identifies the app.
+func New(ctx context.Context, serviceName string, attrs ...attribute.KeyValue) (*OpenTelemetry, error) {
 	// Resources to identify the app
+	attrs = append(
+		attrs,
+		// See https://opentelemetry.io/docs/specs/semconv/resource/#service
+		semconv.ServiceName(serviceName),
+		semconv.ServiceVersion("0.0.1"),
+	)
 	resource, err := sdkres.Merge(
 		sdkres.Default(),
-		sdkres.NewWithAttributes(
-			semconv.SchemaURL,
-			// See https://opentelemetry.io/docs/specs/semconv/resource/#service
-			semconv.ServiceName(serviceName),
-			semconv.ServiceVersion("0.0.1"),
-		),
+		sdkres.NewWithAttributes(semconv.SchemaURL, attrs...),
 	)
 	if err != nil {
 		return nil, err
@@ -103,8 +106,8 @@ func (openTelemetry *OpenTelemetry) Shutdown(ctx context.Context) (err error) {
 	return err
 }
 
-func (openTelemetry *OpenTelemetry) StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
-	return openTelemetry.tracer.Start(ctx, name)
+func (openTelemetry *OpenTelemetry) StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return openTelemetry.tracer.Start(ctx, name, opts...)
 }
 
 func (openTelemetry *OpenTelemetry) Meter() metric.Meter {

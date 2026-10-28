@@ -69,3 +69,35 @@ mtrx docker compose up -d
 
 The child process receives these variables set to the `mtrx` span, so any instrumented program it runs (including
 `mtrx` itself) records its spans as children of the `mtrx` span.
+
+### GitHub Actions
+
+When running in GitHub Actions (`GITHUB_ACTIONS=true`) and `TRACEPARENT` isn't set, `mtrx` links the spans of the
+whole workflow run into a single trace without any configuration:
+
+- the trace id is derived from the run attempt (`GITHUB_REPOSITORY`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`)
+- the parent span id is derived from the job's runner (`RUNNER_NAME`), as runners are ephemeral it identifies the job
+- the resource gets the attributes `cicd.pipeline.run.id`, `cicd.pipeline.run.attempt` and, for a pull request,
+  `vcs.change.id` (the PR number taken from `GITHUB_REF`)
+
+These parents only exist once the run is exported, from the last job of the workflow:
+
+```yaml
+  ci-trace:
+    name: CI Trace
+    if: ${{ always() }}
+    needs: [all-the-leaf-jobs]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      # Install mtrx and set OTEL_EXPORTER and OTEL_EXPORTER_OTLP_ENDPOINT
+      - name: Export run trace
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: mtrx --export-github-run
+```
+
+`mtrx --export-github-run` reads the run and its jobs from the GitHub API and exports, under the service `ci`, a root
+span for the run and a span per job with their start and end times. A job that didn't succeed gets an error status,
+and so does the run.
