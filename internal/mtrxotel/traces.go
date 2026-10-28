@@ -37,6 +37,7 @@ func newTracerProvider(exporter sdktrace.SpanExporter, resource *sdkres.Resource
 	return sdktrace.NewTracerProvider(
 		sdktrace.WithResource(resource),
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithIDGenerator(idGenerator{}),
 		sdktrace.WithSpanProcessor(spanProcessor),
 	)
 }

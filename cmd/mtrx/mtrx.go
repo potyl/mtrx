@@ -2,25 +2,38 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"mtrx/internal/mtrxgithub"
 	"mtrx/internal/mtrxmeter"
 	"mtrx/internal/mtrxotel"
 	"mtrx/internal/mtrxproc"
 	"mtrx/internal/mtrxres"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdkres "go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// Exports the root and job spans of the current GitHub Actions run instead of running a command
+const exportGitHubRunFlag = "--export-github-run"
 
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Printf("Usage: %v CMD [ARG]...\n", filepath.Base(os.Args[0]))
+		name := filepath.Base(os.Args[0])
+		fmt.Printf("Usage: %v CMD [ARG]...\n       %v %v\n", name, name, exportGitHubRunFlag)
 		return
+	}
+
+	if os.Args[1] == exportGitHubRunFlag {
+		os.Exit(exportGitHubRun())
 	}
 
 	// Command to start
@@ -37,7 +50,14 @@ func exec(cmd []string) int {
 	// Create the OpenTelemetry objects
 	ctx := context.Background()
 
-	openTelemetry, err := mtrxotel.New(ctx, "mtrx")
+	// In GitHub Actions the spans are annotated with the run
+	run, inGitHubActions := mtrxgithub.RunFromEnv()
+	var attrs []attribute.KeyValue
+	if inGitHubActions {
+		attrs = run.Attributes()
+	}
+
+	openTelemetry, err := mtrxotel.New(ctx, "mtrx", attrs...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,8 +68,15 @@ func exec(cmd []string) int {
 		}
 	}()
 
-	// Start a span, its parent is taken from the environment (TRACEPARENT) if present
-	spanCtx, span := openTelemetry.StartSpan(mtrxotel.ContextFromEnv(ctx), strings.Join(cmd, " "))
+	// The span's parent is taken from the environment (TRACEPARENT) if present, otherwise in GitHub Actions
+	// it's the span of the job, exported at the end of the run by --export-github-run
+	parentCtx := mtrxotel.ContextFromEnv(ctx)
+	if inGitHubActions && !trace.SpanContextFromContext(parentCtx).IsValid() {
+		parentCtx = trace.ContextWithRemoteSpanContext(parentCtx, run.JobSpanContext(os.Getenv("RUNNER_NAME")))
+	}
+
+	// Start a span
+	spanCtx, span := openTelemetry.StartSpan(parentCtx, strings.Join(cmd, " "))
 	defer span.End()
 
 	// Start the child process with our span as its parent
@@ -89,4 +116,42 @@ func exec(cmd []string) int {
 
 	// Exit with the same exist status as the child process
 	return process.Metrics.ExitCode
+}
+
+func exportGitHubRun() int {
+	ctx := context.Background()
+
+	run, inGitHubActions := mtrxgithub.RunFromEnv()
+	if !inGitHubActions {
+		log.Printf("%v must run in a GitHub Actions job", exportGitHubRunFlag)
+		return 1
+	}
+
+	client, err := mtrxgithub.NewClientFromEnv()
+	if err != nil {
+		log.Print(err)
+		return 1
+	}
+
+	// The spans are exported as they end and the SDK only reports the export errors to its handler
+	var exportErr error
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+		exportErr = errors.Join(exportErr, err)
+	}))
+
+	openTelemetry, err := mtrxotel.New(ctx, "ci", run.Attributes()...)
+	if err != nil {
+		log.Print(err)
+		return 1
+	}
+
+	jobCount, err := mtrxgithub.ExportRun(ctx, openTelemetry, client, run)
+	err = errors.Join(err, openTelemetry.Shutdown(ctx), exportErr)
+	if err != nil {
+		log.Print(err)
+		return 1
+	}
+
+	fmt.Printf("Exported trace %v: run %v attempt %v with %v job spans\n", run.TraceID(), run.ID, run.Attempt, jobCount)
+	return 0
 }
