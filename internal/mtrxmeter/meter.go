@@ -9,93 +9,78 @@ import (
 	sdkres "go.opentelemetry.io/otel/sdk/resource"
 )
 
+// Bucket boundaries in seconds, from sub-second commands up to the hour long ones of a CI pipeline
+var timeBuckets = []float64{0.1, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600, 900, 1200, 1800, 2700, 3600, 7200}
+
+// Bucket boundaries in bytes, from 1 MiB up to 32 GiB doubling at each step
+var memoryBuckets = func() []float64 {
+	buckets := []float64{}
+	for size := float64(1 << 20); size <= 1<<35; size *= 2 {
+		buckets = append(buckets, size)
+	}
+	return buckets
+}()
+
 func withAttributes(resource *sdkres.Resource, extras ...attribute.KeyValue) metric.MeasurementOption {
 	attributes := resource.Attributes()
 	attributes = append(attributes, extras...)
 	return metric.WithAttributes(attributes...)
 }
 
-func OsProcessMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Resource, process *mtrxtypes.Process) error {
+// Records the measurements of a command execution. Each execution is a single sample of its
+// measurements, so they are histograms: their distribution over many executions is what matters.
+func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Resource, process *mtrxtypes.Process) error {
 	metrics := process.Metrics
 
-	if meter, err := meter.Float64Counter(
-		"process.cpu.time",
-		metric.WithDescription("Total CPU seconds broken down by different states"),
+	duration, err := meter.Float64Histogram(
+		"mtrx.command.duration",
+		metric.WithDescription("Wall clock time of the command"),
 		metric.WithUnit("s"),
-	); err == nil {
-		meter.Add(ctx, metrics.Time.Sys, withAttributes(resource, attribute.String("state", "system")))
-		meter.Add(ctx, metrics.Time.User, withAttributes(resource, attribute.String("state", "user")))
-		meter.Add(ctx, metrics.Time.Clock, withAttributes(resource, attribute.String("state", "wait")))
-	} else {
+		metric.WithExplicitBucketBoundaries(timeBuckets...),
+	)
+	if err != nil {
 		return err
 	}
+	duration.Record(ctx, metrics.Time.Clock, withAttributes(resource))
 
-	if meter, err := meter.Int64UpDownCounter(
-		"process.memory.usage",
-		metric.WithDescription("The amount of physical memory in use"),
+	cpuTime, err := meter.Float64Histogram(
+		"mtrx.command.cpu.time",
+		metric.WithDescription("CPU time of the command broken down by mode"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(timeBuckets...),
+	)
+	if err != nil {
+		return err
+	}
+	cpuTime.Record(ctx, metrics.Time.User, withAttributes(resource, attribute.String("cpu.mode", "user")))
+	cpuTime.Record(ctx, metrics.Time.Sys, withAttributes(resource, attribute.String("cpu.mode", "system")))
+
+	memory, err := meter.Int64Histogram(
+		"mtrx.command.memory.max",
+		metric.WithDescription("Maximum resident set size of the command"),
 		metric.WithUnit("By"),
-	); err == nil {
-		meter.Add(ctx, metrics.Sys.MaxRss, withAttributes(resource))
-	} else {
+		metric.WithExplicitBucketBoundaries(memoryBuckets...),
+	)
+	if err != nil {
 		return err
 	}
-
-	if _, err := meter.Int64ObservableGauge(
-		"process.disk.io",
-		metric.WithDescription("Disk bytes transferred"),
-		metric.WithUnit("By"),
-		metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
-			observer.Observe(
-				metrics.FsBlocks.Input,
-				withAttributes(resource, attribute.String("direction", "read")),
-			)
-			observer.Observe(
-				metrics.FsBlocks.Output,
-				withAttributes(resource, attribute.String("direction", "write")),
-			)
-			return nil
-		}),
-	); err != nil {
-		return err
-	}
-
-	if meter, err := meter.Int64Counter(
-		"process.context_switches",
-		metric.WithDescription("Number of times the process has been context switched"),
-		metric.WithUnit("{count}"),
-	); err == nil {
-		meter.Add(
-			ctx,
-			metrics.ContextSwitch.Involuntarily,
-			withAttributes(resource, attribute.String("type", "involuntary")),
-		)
-		meter.Add(
-			ctx,
-			metrics.ContextSwitch.Voluntarily,
-			withAttributes(resource, attribute.String("type", "voluntary")),
-		)
-	} else {
-		return err
-	}
-
-	if meter, err := meter.Int64Counter(
-		"process.paging.faults",
-		metric.WithDescription("Number of page faults the process has made"),
-		metric.WithUnit("{fault}"),
-	); err == nil {
-		meter.Add(
-			ctx,
-			metrics.Sys.PageFaults.Minor,
-			withAttributes(resource, attribute.String("type", "minor")),
-		)
-		meter.Add(
-			ctx,
-			metrics.Sys.PageFaults.Major,
-			withAttributes(resource, attribute.String("type", "major")),
-		)
-	} else {
-		return err
-	}
+	// `rusage` has the data in kilobytes
+	memory.Record(ctx, metrics.Sys.MaxRss*1024, withAttributes(resource))
 
 	return nil
+}
+
+// The resource usage counts of a command execution. They describe a single execution rather than
+// a trend, so they annotate its span instead of being metrics.
+func UsageAttributes(process *mtrxtypes.Process) []attribute.KeyValue {
+	metrics := process.Metrics
+	return []attribute.KeyValue{
+		attribute.Int64("mtrx.page_faults.minor", metrics.Sys.PageFaults.Minor),
+		attribute.Int64("mtrx.page_faults.major", metrics.Sys.PageFaults.Major),
+		attribute.Int64("mtrx.context_switches.voluntary", metrics.ContextSwitch.Voluntarily),
+		attribute.Int64("mtrx.context_switches.involuntary", metrics.ContextSwitch.Involuntarily),
+		// `rusage` has the data in blocks, a block is usually 512 bytes, but it can change per device
+		attribute.Int64("mtrx.fs_blocks.input", metrics.FsBlocks.Input),
+		attribute.Int64("mtrx.fs_blocks.output", metrics.FsBlocks.Output),
+	}
 }

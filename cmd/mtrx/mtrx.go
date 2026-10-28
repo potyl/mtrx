@@ -104,13 +104,14 @@ func exec(cmd []string) int {
 
 	// Enhance the span with attributes based on process
 	span.SetAttributes(resource.Attributes()...)
+	span.SetAttributes(mtrxmeter.UsageAttributes(process)...)
 
 	// TODO add
 	// - https://opentelemetry.io/docs/specs/semconv/resource/host/
 	// - https://opentelemetry.io/docs/specs/semconv/resource/os/
 
 	meter := openTelemetry.Meter()
-	if err := mtrxmeter.OsProcessMetrics(ctx, meter, resource, process); err != nil {
+	if err := mtrxmeter.CommandMetrics(ctx, meter, resource, process); err != nil {
 		log.Fatal(err)
 	}
 
