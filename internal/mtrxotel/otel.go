@@ -61,7 +61,12 @@ func New(ctx context.Context, serviceName string, attrs ...attribute.KeyValue) (
 	if err != nil {
 		return nil, err
 	}
-	metricsReader := sdkmetric.NewManualReader()
+	// The reader decides the temporality, it must follow the exporter's which honors
+	// OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+	metricsReader := sdkmetric.NewManualReader(
+		sdkmetric.WithTemporalitySelector(metricsExporter.Temporality),
+		sdkmetric.WithAggregationSelector(metricsExporter.Aggregation),
+	)
 	meterProvider := newMeterProvider(metricsReader, resource)
 	meter := meterProvider.Meter((""))
 	otel.SetMeterProvider(meterProvider)
