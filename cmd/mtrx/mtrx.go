@@ -62,9 +62,9 @@ func exec(cmd []string) int {
 		log.Fatal(err)
 	}
 	defer func() {
-		err := openTelemetry.Shutdown(ctx)
-		if err != nil {
-			log.Fatal(err)
+		// A telemetry failure is reported but doesn't change the exit status of the command
+		if err := openTelemetry.Shutdown(ctx); err != nil {
+			log.Print(err)
 		}
 	}()
 
