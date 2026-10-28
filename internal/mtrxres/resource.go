@@ -4,7 +4,6 @@ import (
 	"mtrx/internal/mtrxtypes"
 	"os"
 	"regexp"
-	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	sdkres "go.opentelemetry.io/otel/sdk/resource"
@@ -18,7 +17,7 @@ import (
 func NewProcessRuntimeResource(process *mtrxtypes.Process) *sdkres.Resource {
 	attrs := []attribute.KeyValue{
 		semconv.ProcessCommand(process.Command),
-		semconv.ProcessCommandArgs(strings.Join(process.CommandArgs, " ")),
+		semconv.ProcessCommandArgs(process.CommandArgs...),
 		semconv.ProcessExecutableName(process.Executable.Name),
 		semconv.ProcessExecutablePath(process.Executable.Path),
 		semconv.ProcessOwner(process.Owner),
