@@ -94,6 +94,8 @@ func TestMemoryBuckets(t *testing.T) {
 func TestMetricAttributesHaveALowCardinality(t *testing.T) {
 	resource := sdkres.NewSchemaless(
 		attribute.String("github.repository", "cloudbeds/mfd"),
+		attribute.String("github.ref.name", "13140/merge"),
+		attribute.String("vcs.ref.base.name", "main"),
 		attribute.String("github.job", "phpstan"),
 		attribute.String("runner.name", "x16-core-abc"),
 		attribute.Int("process.pid", 1234),
@@ -105,6 +107,7 @@ func TestMetricAttributesHaveALowCardinality(t *testing.T) {
 	got := attribute.NewSet(metricAttributes(resource, process)...)
 	expected := attribute.NewSet(
 		attribute.String("github.repository", "cloudbeds/mfd"),
+		attribute.String("vcs.ref.base.name", "main"),
 		attribute.String("github.job", "phpstan"),
 		attribute.String("process.command_line", "make build"),
 		attribute.Int("process.exit.code", 2),

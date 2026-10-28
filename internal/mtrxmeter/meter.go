@@ -29,7 +29,7 @@ var memoryBuckets = func() []float64 {
 // ids, users or runner names, which are different for each execution.
 var metricResourceKeys = map[attribute.Key]bool{
 	"github.repository": true,
-	"github.ref.name":   true,
+	"vcs.ref.base.name": true,
 	"github.event.name": true,
 	"github.job":        true,
 	"runner.arch":       true,
