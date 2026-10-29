@@ -18,6 +18,12 @@ func newTestProcess() *mtrxtypes.Process {
 	metrics.Time.User = 30
 	metrics.Time.Sys = 2.5
 	metrics.Sys.MaxRss = 2048
+	metrics.Sys.PageFaults.Minor = 300
+	metrics.Sys.PageFaults.Major = 4
+	metrics.ContextSwitch.Voluntarily = 50
+	metrics.ContextSwitch.Involuntarily = 6
+	metrics.FsIO.Read = 70 * 512
+	metrics.FsIO.Write = 8 * 512
 	return &mtrxtypes.Process{Metrics: &metrics, Command: "make", CommandArgs: []string{"build"}}
 }
 
@@ -85,9 +91,51 @@ func TestCommandMetricsAreHistograms(t *testing.T) {
 	}
 }
 
-func TestMemoryBuckets(t *testing.T) {
-	if first, last := memoryBuckets[0], memoryBuckets[len(memoryBuckets)-1]; first != 1<<20 || last != 1<<35 {
-		t.Errorf("got buckets from %v to %v, expected from 1 MiB to 32 GiB", first, last)
+func TestCountMetrics(t *testing.T) {
+	metrics := collect(t, sdkres.Empty(), newTestProcess())
+
+	tests := []struct {
+		name     string
+		key      attribute.Key
+		value    string
+		expected int64
+	}{
+		{"mtrx.command.page_faults", "type", "minor", 300},
+		{"mtrx.command.page_faults", "type", "major", 4},
+		{"mtrx.command.context_switches", "type", "voluntary", 50},
+		{"mtrx.command.context_switches", "type", "involuntary", 6},
+		{"mtrx.command.fs.io", "direction", "read", 70 * 512},
+		{"mtrx.command.fs.io", "direction", "write", 8 * 512},
+	}
+	for _, test := range tests {
+		histogram, ok := metrics[test.name].(metricdata.Histogram[int64])
+		if !ok {
+			t.Fatalf("%v: expected an int64 histogram, got %T", test.name, metrics[test.name])
+		}
+		found := false
+		for _, point := range histogram.DataPoints {
+			if value, _ := point.Attributes.Value(test.key); value.AsString() == test.value {
+				found = true
+				if point.Count != 1 || point.Sum != test.expected {
+					t.Errorf("%v %v: got count %v and sum %v, expected a single %v", test.name, test.value, point.Count, point.Sum, test.expected)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%v: no data point with %v=%q", test.name, test.key, test.value)
+		}
+	}
+}
+
+func TestCountBuckets(t *testing.T) {
+	if first, last := countBuckets[0], countBuckets[len(countBuckets)-1]; first != 1 || last != 5e9 {
+		t.Errorf("got buckets from %v to %v, expected from 1 to 5e9", first, last)
+	}
+}
+
+func TestByteBuckets(t *testing.T) {
+	if first, last := byteBuckets[0], byteBuckets[len(byteBuckets)-1]; first != 1<<12 || last != 1<<36 {
+		t.Errorf("got buckets from %v to %v, expected from 4 KiB to 64 GiB", first, last)
 	}
 }
 

@@ -37,6 +37,9 @@ give the distribution of the measurements over many executions.
 | `mtrx.command.duration`   | `s`  | Wall clock time of the command                    |
 | `mtrx.command.cpu.time`   | `s`  | CPU time, by `cpu.mode`: `user` or `system`       |
 | `mtrx.command.memory.max` | `By` | Maximum resident set size                         |
+| `mtrx.command.page_faults` | `{fault}` | Page faults, by `type`: `minor` or `major` |
+| `mtrx.command.context_switches` | `{switch}` | Context switches, by `type`: `voluntary` or `involuntary` |
+| `mtrx.command.fs.io` | `By` | Bytes read from and written to the storage, by `direction`: `read` or `write` |
 
 The utility is expected to be executed from CI, mainly GitHub and the data collected is annotated with GitHub's CI information:
 
@@ -61,7 +64,8 @@ whether they come from pushes, pull requests or the merge queue.
 
 The metrics also have the command line (`process.command_line`) and its exit code (`process.exit.code`). Every
 combination of attribute values is a time series, so the metrics only get the attributes with a low cardinality. The
-span gets all of them, plus the process ids and the page faults, context switches and file system blocks.
+span gets all of them, plus the process ids, and the page faults, context switches and file system bytes as
+attributes.
 
 For instance the median duration of a build on `main` over a week:
 

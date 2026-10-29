@@ -62,10 +62,10 @@ func newMetrics(waitStatus *syscall.WaitStatus, rusage *syscall.Rusage, elapsed 
 	metrics.Sys.PageFaults.Minor = rusage.Minflt
 	metrics.Sys.PageFaults.Major = rusage.Majflt
 
-	// `rusage` has the data in blocks, a block is usually 512 bytes, but it can change per device.
+	// Linux counts the file system I/O in 512 bytes units (read_bytes >> 9), whatever the device.
 	// The problem is that we don't know from which device the process made the I/O.
-	metrics.FsBlocks.Input = rusage.Inblock
-	metrics.FsBlocks.Output = rusage.Oublock
+	metrics.FsIO.Read = rusage.Inblock * 512
+	metrics.FsIO.Write = rusage.Oublock * 512
 
 	metrics.ContextSwitch.Involuntarily = rusage.Nivcsw
 	metrics.ContextSwitch.Voluntarily = rusage.Nvcsw
