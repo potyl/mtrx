@@ -118,15 +118,15 @@ func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Re
 		values      []countValue
 	}{
 		{
-			"mtrx.command.page_faults", "Page faults of the command broken down by type", "{fault}", countBuckets, "type",
+			"mtrx.command.page_faults", "Page faults of the command broken down by type", "{fault}", countBuckets, "system.paging.fault.type",
 			[]countValue{{"minor", metrics.Sys.PageFaults.Minor}, {"major", metrics.Sys.PageFaults.Major}},
 		},
 		{
-			"mtrx.command.context_switches", "Context switches of the command broken down by type", "{switch}", countBuckets, "type",
+			"mtrx.command.context_switches", "Context switches of the command broken down by type", "{switch}", countBuckets, "process.context_switch.type",
 			[]countValue{{"voluntary", metrics.ContextSwitch.Voluntarily}, {"involuntary", metrics.ContextSwitch.Involuntarily}},
 		},
 		{
-			"mtrx.command.fs.io", "Bytes read from and written to the storage by the command", "By", byteBuckets, "direction",
+			"mtrx.command.fs.io", "Bytes read from and written to the storage by the command", "By", byteBuckets, "disk.io.direction",
 			[]countValue{{"read", metrics.FsIO.Read}, {"write", metrics.FsIO.Write}},
 		},
 	}

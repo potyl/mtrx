@@ -100,12 +100,12 @@ func TestCountMetrics(t *testing.T) {
 		value    string
 		expected int64
 	}{
-		{"mtrx.command.page_faults", "type", "minor", 300},
-		{"mtrx.command.page_faults", "type", "major", 4},
-		{"mtrx.command.context_switches", "type", "voluntary", 50},
-		{"mtrx.command.context_switches", "type", "involuntary", 6},
-		{"mtrx.command.fs.io", "direction", "read", 70 * 512},
-		{"mtrx.command.fs.io", "direction", "write", 8 * 512},
+		{"mtrx.command.page_faults", "system.paging.fault.type", "minor", 300},
+		{"mtrx.command.page_faults", "system.paging.fault.type", "major", 4},
+		{"mtrx.command.context_switches", "process.context_switch.type", "voluntary", 50},
+		{"mtrx.command.context_switches", "process.context_switch.type", "involuntary", 6},
+		{"mtrx.command.fs.io", "disk.io.direction", "read", 70 * 512},
+		{"mtrx.command.fs.io", "disk.io.direction", "write", 8 * 512},
 	}
 	for _, test := range tests {
 		histogram, ok := metrics[test.name].(metricdata.Histogram[int64])
