@@ -16,11 +16,10 @@ type Metrics struct {
 		}
 	}
 
-	// Number of times that the filesystem had to access the disk (excludes files from cache).
-	// The values are in blocks, usually a block is 512 bytes.
-	FsBlocks struct {
-		Input  int64
-		Output int64
+	// Bytes that the file system read from and wrote to the storage (excludes the page cache).
+	FsIO struct {
+		Read  int64
+		Write int64
 	}
 
 	ContextSwitch struct {
