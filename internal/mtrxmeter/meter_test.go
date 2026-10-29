@@ -100,12 +100,12 @@ func TestCountMetrics(t *testing.T) {
 		value    string
 		expected int64
 	}{
-		{"mtrx.command.page_faults", "type", "minor", 300},
-		{"mtrx.command.page_faults", "type", "major", 4},
-		{"mtrx.command.context_switches", "type", "voluntary", 50},
-		{"mtrx.command.context_switches", "type", "involuntary", 6},
-		{"mtrx.command.fs.io", "direction", "read", 70 * 512},
-		{"mtrx.command.fs.io", "direction", "write", 8 * 512},
+		{"mtrx.command.page_faults", "system.paging.fault.type", "minor", 300},
+		{"mtrx.command.page_faults", "system.paging.fault.type", "major", 4},
+		{"mtrx.command.context_switches", "process.context_switch.type", "voluntary", 50},
+		{"mtrx.command.context_switches", "process.context_switch.type", "involuntary", 6},
+		{"mtrx.command.fs.io", "disk.io.direction", "read", 70 * 512},
+		{"mtrx.command.fs.io", "disk.io.direction", "write", 8 * 512},
 	}
 	for _, test := range tests {
 		histogram, ok := metrics[test.name].(metricdata.Histogram[int64])
@@ -141,11 +141,12 @@ func TestByteBuckets(t *testing.T) {
 
 func TestMetricAttributesHaveALowCardinality(t *testing.T) {
 	resource := sdkres.NewSchemaless(
-		attribute.String("github.repository", "cloudbeds/mfd"),
-		attribute.String("github.ref.name", "13140/merge"),
+		attribute.String("vcs.owner.name", "cloudbeds"),
+		attribute.String("vcs.repository.name", "mfd"),
+		attribute.String("vcs.ref.head.name", "emo/feature"),
 		attribute.String("vcs.ref.base.name", "main"),
-		attribute.String("github.job", "phpstan"),
-		attribute.String("runner.name", "x16-core-abc"),
+		attribute.String("cicd.pipeline.task.name", "phpstan"),
+		attribute.String("cicd.worker.name", "x16-core-abc"),
 		attribute.Int("process.pid", 1234),
 		attribute.String("process.owner", "runner"),
 	)
@@ -154,9 +155,10 @@ func TestMetricAttributesHaveALowCardinality(t *testing.T) {
 
 	got := attribute.NewSet(metricAttributes(resource, process)...)
 	expected := attribute.NewSet(
-		attribute.String("github.repository", "cloudbeds/mfd"),
+		attribute.String("vcs.owner.name", "cloudbeds"),
+		attribute.String("vcs.repository.name", "mfd"),
 		attribute.String("vcs.ref.base.name", "main"),
-		attribute.String("github.job", "phpstan"),
+		attribute.String("cicd.pipeline.task.name", "phpstan"),
 		attribute.String("process.command_line", "make build"),
 		attribute.Int("process.exit.code", 2),
 	)

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"mtrx/internal/mtrxgithub"
@@ -24,6 +25,9 @@ import (
 
 // Exports the root and job spans of the current GitHub Actions run instead of running a command
 const exportGitHubRunFlag = "--export-github-run"
+
+// The release, set at build time with -ldflags "-X main.version=..."
+var version = "dev"
 
 func main() {
 	if len(os.Args) == 1 {
@@ -57,7 +61,7 @@ func exec(cmd []string) int {
 		attrs = run.Attributes()
 	}
 
-	openTelemetry, err := mtrxotel.New(ctx, "mtrx", attrs...)
+	openTelemetry, err := mtrxotel.New(ctx, "mtrx", version, attrs...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,7 +91,7 @@ func exec(cmd []string) int {
 		log.Fatal(err)
 	}
 	span.AddEvent("Child process finished")
-	span.SetStatus(codes.Ok, "Child process finished")
+	setExitStatus(span, process.Metrics.ExitCode)
 
 	// Add the resources collected from environment and the child process
 	resourcesList := []*sdkres.Resource{
@@ -140,7 +144,7 @@ func exportGitHubRun() int {
 		exportErr = errors.Join(exportErr, err)
 	}))
 
-	openTelemetry, err := mtrxotel.New(ctx, "github-actions", run.Attributes()...)
+	openTelemetry, err := mtrxotel.New(ctx, "github-actions", version, run.Attributes()...)
 	if err != nil {
 		log.Print(err)
 		return 1
@@ -155,4 +159,16 @@ func exportGitHubRun() int {
 
 	fmt.Printf("Exported trace %v: run %v attempt %v with %v job spans\n", run.TraceID(), run.ID, run.Attempt, jobCount)
 	return 0
+}
+
+// Records the exit code of the command on its span, a non zero exit code makes the span an error
+func setExitStatus(span trace.Span, exitCode int) {
+	span.SetAttributes(attribute.Int("process.exit.code", exitCode))
+	if exitCode == 0 {
+		span.SetStatus(codes.Ok, "")
+		return
+	}
+	// The conventions use the exit code as error.type for a process when there's no better type
+	span.SetAttributes(attribute.String("error.type", strconv.Itoa(exitCode)))
+	span.SetStatus(codes.Error, fmt.Sprintf("Exit code %d", exitCode))
 }

@@ -37,12 +37,14 @@ var countBuckets = func() []float64 {
 // series, so unlike the span the metrics only get the attributes with a low cardinality: no process
 // ids, users or runner names, which are different for each execution.
 var metricResourceKeys = map[attribute.Key]bool{
-	"github.repository": true,
-	"vcs.ref.base.name": true,
-	"github.event.name": true,
-	"github.job":        true,
-	"runner.arch":       true,
-	"runner.os":         true,
+	"vcs.owner.name":          true,
+	"vcs.repository.name":     true,
+	"vcs.ref.base.name":       true,
+	"cicd.pipeline.name":      true,
+	"github.event.name":       true,
+	"cicd.pipeline.task.name": true,
+	"host.arch":               true,
+	"os.type":                 true,
 }
 
 // The attributes of the metrics of a command execution: the low cardinality resource attributes,
@@ -116,15 +118,15 @@ func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Re
 		values      []countValue
 	}{
 		{
-			"mtrx.command.page_faults", "Page faults of the command broken down by type", "{fault}", countBuckets, "type",
+			"mtrx.command.page_faults", "Page faults of the command broken down by type", "{fault}", countBuckets, "system.paging.fault.type",
 			[]countValue{{"minor", metrics.Sys.PageFaults.Minor}, {"major", metrics.Sys.PageFaults.Major}},
 		},
 		{
-			"mtrx.command.context_switches", "Context switches of the command broken down by type", "{switch}", countBuckets, "type",
+			"mtrx.command.context_switches", "Context switches of the command broken down by type", "{switch}", countBuckets, "process.context_switch.type",
 			[]countValue{{"voluntary", metrics.ContextSwitch.Voluntarily}, {"involuntary", metrics.ContextSwitch.Involuntarily}},
 		},
 		{
-			"mtrx.command.fs.io", "Bytes read from and written to the storage by the command", "By", byteBuckets, "direction",
+			"mtrx.command.fs.io", "Bytes read from and written to the storage by the command", "By", byteBuckets, "disk.io.direction",
 			[]countValue{{"read", metrics.FsIO.Read}, {"write", metrics.FsIO.Write}},
 		},
 	}
