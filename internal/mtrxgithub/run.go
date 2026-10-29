@@ -66,7 +66,7 @@ var pullRequestRef = regexp.MustCompile(`^refs/pull/(\d+)/`)
 func (run Run) Attributes() []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String("cicd.pipeline.run.id", run.ID),
-		attribute.String("cicd.pipeline.run.attempt", run.Attempt),
+		attribute.String("github.run.attempt", run.Attempt),
 	}
 	if match := pullRequestRef.FindStringSubmatch(run.Ref); match != nil {
 		attrs = append(attrs, attribute.String("vcs.change.id", match[1]))

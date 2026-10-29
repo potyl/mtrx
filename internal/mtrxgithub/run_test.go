@@ -45,7 +45,7 @@ func TestAttributes(t *testing.T) {
 			"refs/pull/13140/merge",
 			[]attribute.KeyValue{
 				attribute.String("cicd.pipeline.run.id", "40561899477"),
-				attribute.String("cicd.pipeline.run.attempt", "1"),
+				attribute.String("github.run.attempt", "1"),
 				attribute.String("vcs.change.id", "13140"),
 			},
 		},
@@ -53,7 +53,7 @@ func TestAttributes(t *testing.T) {
 			"refs/heads/main",
 			[]attribute.KeyValue{
 				attribute.String("cicd.pipeline.run.id", "40561899477"),
-				attribute.String("cicd.pipeline.run.attempt", "1"),
+				attribute.String("github.run.attempt", "1"),
 			},
 		},
 	}

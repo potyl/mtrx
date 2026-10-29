@@ -37,12 +37,13 @@ var countBuckets = func() []float64 {
 // series, so unlike the span the metrics only get the attributes with a low cardinality: no process
 // ids, users or runner names, which are different for each execution.
 var metricResourceKeys = map[attribute.Key]bool{
-	"github.repository": true,
-	"vcs.ref.base.name": true,
-	"github.event.name": true,
-	"github.job":        true,
-	"runner.arch":       true,
-	"runner.os":         true,
+	"vcs.owner.name":          true,
+	"vcs.repository.name":     true,
+	"vcs.ref.base.name":       true,
+	"github.event.name":       true,
+	"cicd.pipeline.task.name": true,
+	"host.arch":               true,
+	"os.type":                 true,
 }
 
 // The attributes of the metrics of a command execution: the low cardinality resource attributes,
