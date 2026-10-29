@@ -32,46 +32,60 @@ No Prometheus exporter is required nor expected.
 Each execution sends a span and the following metrics. An execution is a single sample, so they are histograms: they
 give the distribution of the measurements over many executions.
 
-| Metric                    | Unit | Description                                       |
-| ------------------------- | ---- | ------------------------------------------------- |
-| `mtrx.command.duration`   | `s`  | Wall clock time of the command                    |
-| `mtrx.command.cpu.time`   | `s`  | CPU time, by `cpu.mode`: `user` or `system`       |
-| `mtrx.command.memory.max` | `By` | Maximum resident set size                         |
-| `mtrx.command.page_faults` | `{fault}` | Page faults, by `type`: `minor` or `major` |
-| `mtrx.command.context_switches` | `{switch}` | Context switches, by `type`: `voluntary` or `involuntary` |
-| `mtrx.command.fs.io` | `By` | Bytes read from and written to the storage, by `direction`: `read` or `write` |
+| Metric                          | Unit       | Attribute                                         |
+| ------------------------------- | ---------- | ------------------------------------------------- |
+| `mtrx.command.duration`         | `s`        | Wall clock time of the command                    |
+| `mtrx.command.cpu.time`         | `s`        | CPU time, by `cpu.mode`: `user` or `system`       |
+| `mtrx.command.memory.max`       | `By`       | Maximum resident set size                         |
+| `mtrx.command.page_faults`      | `{fault}`  | By `system.paging.fault.type`: `minor` or `major` |
+| `mtrx.command.context_switches` | `{switch}` | By `process.context_switch.type`: `voluntary` or `involuntary` |
+| `mtrx.command.fs.io`            | `By`       | Bytes read from and written to the storage, by `disk.io.direction`: `read` or `write` |
 
-The utility is expected to be executed from CI, mainly GitHub and the data collected is annotated with GitHub's CI information:
+The utility is expected to be executed from CI, mainly GitHub Actions. The data is annotated from GitHub's environment
+variables (no GitHub API call), with the names of the
+[OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/) when they define
+one, under `github.*` otherwise:
 
-| Environment variable | Attribute            | On the metrics |
-| -------------------- | -------------------- | -------------- |
-| GITHUB_REPOSITORY    | `github.repository`  | yes            |
-| GITHUB_REF_TYPE      | `github.ref.type`    |                |
-| GITHUB_REF_NAME      | `github.ref.name`    |                |
-| GITHUB_REF           | `github.ref`         |                |
-| GITHUB_JOB           | `github.job`         | yes            |
-| GITHUB_ACTOR         | `github.actor`       |                |
-| GITHUB_EVENT_NAME    | `github.event.name`  | yes            |
-| RUNNER_ARCH          | `runner.arch`        | yes            |
-| RUNNER_ENVIRONMENT   | `runner.environment` |                |
-| RUNNER_NAME          | `runner.name`        |                |
-| RUNNER_OS            | `runner.os`          | yes            |
-| RUNNER_USER          | `runner.user`        |                |
+| Attribute                    | Source                                                    | Metrics | Spans |
+| ---------------------------- | --------------------------------------------------------- | ------- | ----- |
+| `vcs.provider.name`          | `github`                                                  |         | yes   |
+| `vcs.owner.name`             | `GITHUB_REPOSITORY_OWNER`                                 | yes     | yes   |
+| `vcs.repository.name`        | `GITHUB_REPOSITORY` without the owner                     | yes     | yes   |
+| `vcs.repository.url.full`    | `GITHUB_SERVER_URL`/`GITHUB_REPOSITORY`                   |         | yes   |
+| `vcs.ref.head.name`          | `GITHUB_HEAD_REF` for a pull request, else `GITHUB_REF_NAME` |      | yes   |
+| `vcs.ref.head.type`          | `GITHUB_REF_TYPE`                                         |         | yes   |
+| `vcs.ref.head.revision`      | `GITHUB_SHA` (the merge commit for a pull request)        |         | yes   |
+| `vcs.ref.base.name`          | the branch the code lands in, see below                   | yes     | yes   |
+| `vcs.ref.base.type`          | `branch`, or `GITHUB_REF_TYPE` outside of a change        |         | yes   |
+| `vcs.change.id`              | the pull request number from `GITHUB_REF`                 |         | yes   |
+| `cicd.pipeline.name`         | `GITHUB_WORKFLOW`                                         | yes     | yes   |
+| `cicd.pipeline.task.name`    | `GITHUB_JOB`                                              | yes     | yes   |
+| `cicd.pipeline.run.id`       | `GITHUB_RUN_ID`                                           |         | yes   |
+| `cicd.pipeline.run.url.full` | the URL of the run attempt                                |         | yes   |
+| `cicd.worker.name`           | `RUNNER_NAME`                                             |         | yes   |
+| `host.arch`                  | `RUNNER_ARCH`: `X64` -> `amd64`, `ARM64` -> `arm64`       | yes     | yes   |
+| `os.type`                    | `RUNNER_OS`: `Linux` -> `linux`                           | yes     | yes   |
+| `github.event.name`          | `GITHUB_EVENT_NAME`                                       | yes     | yes   |
+| `github.actor`               | `GITHUB_ACTOR`                                            |         | yes   |
+| `github.run.attempt`         | `GITHUB_RUN_ATTEMPT`                                      |         | yes   |
+| `github.runner.environment`  | `RUNNER_ENVIRONMENT`                                      |         | yes   |
 
 `vcs.ref.base.name` is the branch the code lands in: the target branch of a pull request (`GITHUB_BASE_REF`) or of a
-merge queue entry, otherwise `GITHUB_REF_NAME`. It's on the metrics too, so the executions of a branch can be compared
+merge queue entry, otherwise `GITHUB_REF_NAME`. It's on the metrics, so the executions of a branch can be compared
 whether they come from pushes, pull requests or the merge queue.
 
-The metrics also have the command line (`process.command_line`) and its exit code (`process.exit.code`). Every
-combination of attribute values is a time series, so the metrics only get the attributes with a low cardinality. The
-span gets all of them, plus the process ids, and the page faults, context switches and file system bytes as
-attributes.
+The metrics and the span also have the command line (`process.command_line` on the metrics, `process.command` and
+`process.command_args` on the span) and its exit code (`process.exit.code`). A non zero exit code makes the span an
+error, with `error.type` set to the exit code. Every combination of attribute values is a time series, so the metrics
+only get the attributes with a low cardinality. The span gets all of them, plus the process ids, and the page faults,
+context switches and file system bytes as attributes.
 
 For instance the median duration of a build on `main` over a week:
 
 ```promql
 histogram_quantile(0.5, sum by (le) (increase(mtrx_command_duration_bucket{
-  github_repository="cloudbeds/mfd", vcs_ref_base_name="main", process_command_line="docker compose build"}[1w])))
+  vcs_owner_name="cloudbeds", vcs_repository_name="mfd", vcs_ref_base_name="main",
+  process_command_line="docker compose build"}[1w])))
 ```
 
 ### Configuration
@@ -116,8 +130,8 @@ whole workflow run into a single trace without any configuration:
 
 - the trace id is derived from the run attempt (`GITHUB_REPOSITORY`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`)
 - the parent span id is derived from the job's runner (`RUNNER_NAME`), as runners are ephemeral it identifies the job
-- the resource gets the attributes `cicd.pipeline.run.id`, `cicd.pipeline.run.attempt` and, for a pull request,
-  `vcs.change.id` (the PR number taken from `GITHUB_REF`)
+- the resource of the traces gets the attributes `cicd.pipeline.run.id`, `cicd.pipeline.run.url.full`,
+  `github.run.attempt` and, for a pull request, `vcs.change.id` (the PR number taken from `GITHUB_REF`)
 
 These parents only exist once the run is exported, from the last job of the workflow:
 
