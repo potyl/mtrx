@@ -6,7 +6,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-var run = Run{Repository: "cloudbeds/mfd", ID: "40561899477", Attempt: "1", Ref: "refs/pull/13140/merge"}
+var run = Run{ServerURL: "https://github.com", Repository: "cloudbeds/mfd", ID: "40561899477", Attempt: "1", Ref: "refs/pull/13140/merge"}
 
 // The ids are the ones computed by: printf '%s' "$repo/$run_id/$attempt/$suffix" | sha256sum
 func TestIDs(t *testing.T) {
@@ -46,6 +46,7 @@ func TestAttributes(t *testing.T) {
 			[]attribute.KeyValue{
 				attribute.String("cicd.pipeline.run.id", "40561899477"),
 				attribute.String("github.run.attempt", "1"),
+				attribute.String("cicd.pipeline.run.url.full", "https://github.com/cloudbeds/mfd/actions/runs/40561899477/attempts/1"),
 				attribute.String("vcs.change.id", "13140"),
 			},
 		},
@@ -54,6 +55,7 @@ func TestAttributes(t *testing.T) {
 			[]attribute.KeyValue{
 				attribute.String("cicd.pipeline.run.id", "40561899477"),
 				attribute.String("github.run.attempt", "1"),
+				attribute.String("cicd.pipeline.run.url.full", "https://github.com/cloudbeds/mfd/actions/runs/40561899477/attempts/1"),
 			},
 		},
 	}
@@ -73,6 +75,7 @@ func TestAttributes(t *testing.T) {
 }
 
 func TestRunFromEnv(t *testing.T) {
+	t.Setenv("GITHUB_SERVER_URL", run.ServerURL)
 	t.Setenv("GITHUB_REPOSITORY", run.Repository)
 	t.Setenv("GITHUB_RUN_ID", run.ID)
 	t.Setenv("GITHUB_RUN_ATTEMPT", run.Attempt)

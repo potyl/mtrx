@@ -40,6 +40,7 @@ var metricResourceKeys = map[attribute.Key]bool{
 	"vcs.owner.name":          true,
 	"vcs.repository.name":     true,
 	"vcs.ref.base.name":       true,
+	"cicd.pipeline.name":      true,
 	"github.event.name":       true,
 	"cicd.pipeline.task.name": true,
 	"host.arch":               true,

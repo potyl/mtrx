@@ -2,6 +2,7 @@ package mtrxgithub
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"regexp"
 
@@ -17,6 +18,7 @@ import (
 // This way the jobs and the export of the run (ExportRun) agree on the ids without passing anything
 // between them.
 type Run struct {
+	ServerURL  string // GITHUB_SERVER_URL: "https://github.com"
 	Repository string // GITHUB_REPOSITORY: "org/repo"
 	ID         string // GITHUB_RUN_ID
 	Attempt    string // GITHUB_RUN_ATTEMPT
@@ -26,6 +28,7 @@ type Run struct {
 // Returns the run of the current GitHub Actions job, false when not running in GitHub Actions.
 func RunFromEnv() (Run, bool) {
 	run := Run{
+		ServerURL:  os.Getenv("GITHUB_SERVER_URL"),
 		Repository: os.Getenv("GITHUB_REPOSITORY"),
 		ID:         os.Getenv("GITHUB_RUN_ID"),
 		Attempt:    os.Getenv("GITHUB_RUN_ATTEMPT"),
@@ -67,6 +70,10 @@ func (run Run) Attributes() []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String("cicd.pipeline.run.id", run.ID),
 		attribute.String("github.run.attempt", run.Attempt),
+	}
+	if run.ServerURL != "" {
+		url := fmt.Sprintf("%s/%s/actions/runs/%s/attempts/%s", run.ServerURL, run.Repository, run.ID, run.Attempt)
+		attrs = append(attrs, attribute.String("cicd.pipeline.run.url.full", url))
 	}
 	if match := pullRequestRef.FindStringSubmatch(run.Ref); match != nil {
 		attrs = append(attrs, attribute.String("vcs.change.id", match[1]))

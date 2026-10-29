@@ -38,20 +38,34 @@ func NewGitHubResource() *sdkres.Resource {
 	attrs := []attribute.KeyValue{
 		envKeyValue("GITHUB_REPOSITORY_OWNER", "vcs.owner.name"), // "cloudbeds"
 		envKeyValue("GITHUB_REF_TYPE", "vcs.ref.head.type"),      // "branch" or "tag"
+		envKeyValue("GITHUB_SHA", "vcs.ref.head.revision"),       // the merge commit for a pull request
+		envKeyValue("GITHUB_WORKFLOW", "cicd.pipeline.name"),     // "PR Checks"
 		envKeyValue("GITHUB_JOB", "cicd.pipeline.task.name"),     // "test"
 		envKeyValue("GITHUB_ACTOR", "github.actor"),              // "username"
 		envKeyValue("GITHUB_EVENT_NAME", "github.event.name"),    // "pull_request"
 	}
 	// The repository name without its owner: "mfd" for "cloudbeds/mfd"
-	if _, name, found := strings.Cut(os.Getenv("GITHUB_REPOSITORY"), "/"); found {
-		attrs = append(attrs, attribute.String("vcs.repository.name", name))
+	repository := os.Getenv("GITHUB_REPOSITORY")
+	if _, name, found := strings.Cut(repository, "/"); found {
+		attrs = append(
+			attrs,
+			attribute.String("vcs.provider.name", "github"),
+			attribute.String("vcs.repository.name", name),
+		)
+		if serverURL := os.Getenv("GITHUB_SERVER_URL"); serverURL != "" {
+			attrs = append(attrs, attribute.String("vcs.repository.url.full", serverURL+"/"+repository))
+		}
 	}
 	// The branch of a pull request, GITHUB_REF_NAME is "<number>/merge" for it
 	if headRefName := firstEnv("GITHUB_HEAD_REF", "GITHUB_REF_NAME"); headRefName != "" {
 		attrs = append(attrs, attribute.String("vcs.ref.head.name", headRefName))
 	}
-	if baseRefName := baseRefName(); baseRefName != "" {
-		attrs = append(attrs, attribute.String("vcs.ref.base.name", baseRefName))
+	if baseRefName, baseRefType := baseRef(); baseRefName != "" {
+		attrs = append(
+			attrs,
+			attribute.String("vcs.ref.base.name", baseRefName),
+			attribute.String("vcs.ref.base.type", baseRefType),
+		)
 	}
 	return sdkres.NewSchemaless(attrs...)
 }
@@ -59,19 +73,19 @@ func NewGitHubResource() *sdkres.Resource {
 // The ref of a merge queue entry: gh-readonly-queue/<base branch>/pr-<number>-<sha>
 var mergeQueueRefName = regexp.MustCompile(`^gh-readonly-queue/(.+)/pr-\d+-[0-9a-f]+$`)
 
-// Returns the name of the branch the code lands in: the target branch of a pull request or of a
-// merge queue entry, otherwise the ref itself. Unlike GITHUB_REF_NAME ("123/merge" for a pull
+// Returns the name and type of the ref the code lands in: the target branch of a pull request or of
+// a merge queue entry, otherwise the ref itself. Unlike GITHUB_REF_NAME ("123/merge" for a pull
 // request) it groups the runs of all the changes made to a branch.
-func baseRefName() string {
+func baseRef() (name string, refType string) {
 	if baseRef := os.Getenv("GITHUB_BASE_REF"); baseRef != "" {
-		return baseRef
+		return baseRef, "branch"
 	}
 
 	refName := os.Getenv("GITHUB_REF_NAME")
 	if match := mergeQueueRefName.FindStringSubmatch(refName); match != nil {
-		return match[1]
+		return match[1], "branch"
 	}
-	return refName
+	return refName, os.Getenv("GITHUB_REF_TYPE")
 }
 
 //
