@@ -32,7 +32,7 @@ type OpenTelemetry struct {
 // Creates the OpenTelemetry objects. The given attributes are only added to the resource of the
 // traces: they identify a single run (run id, pull request), and on the metrics every resource
 // is a distinct series, which would split the executions of a command run by run.
-func New(ctx context.Context, serviceName string, traceAttrs ...attribute.KeyValue) (*OpenTelemetry, error) {
+func New(ctx context.Context, serviceName string, serviceVersion string, traceAttrs ...attribute.KeyValue) (*OpenTelemetry, error) {
 	// Resources to identify the app
 	resource, err := sdkres.Merge(
 		sdkres.Default(),
@@ -40,7 +40,7 @@ func New(ctx context.Context, serviceName string, traceAttrs ...attribute.KeyVal
 			semconv.SchemaURL,
 			// See https://opentelemetry.io/docs/specs/semconv/resource/#service
 			semconv.ServiceName(serviceName),
-			semconv.ServiceVersion("0.0.1"),
+			semconv.ServiceVersion(serviceVersion),
 		),
 	)
 	if err != nil {

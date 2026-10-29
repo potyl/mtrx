@@ -26,6 +26,9 @@ import (
 // Exports the root and job spans of the current GitHub Actions run instead of running a command
 const exportGitHubRunFlag = "--export-github-run"
 
+// The release, set at build time with -ldflags "-X main.version=..."
+var version = "dev"
+
 func main() {
 	if len(os.Args) == 1 {
 		name := filepath.Base(os.Args[0])
@@ -58,7 +61,7 @@ func exec(cmd []string) int {
 		attrs = run.Attributes()
 	}
 
-	openTelemetry, err := mtrxotel.New(ctx, "mtrx", attrs...)
+	openTelemetry, err := mtrxotel.New(ctx, "mtrx", version, attrs...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,7 +144,7 @@ func exportGitHubRun() int {
 		exportErr = errors.Join(exportErr, err)
 	}))
 
-	openTelemetry, err := mtrxotel.New(ctx, "github-actions", run.Attributes()...)
+	openTelemetry, err := mtrxotel.New(ctx, "github-actions", version, run.Attributes()...)
 	if err != nil {
 		log.Print(err)
 		return 1
