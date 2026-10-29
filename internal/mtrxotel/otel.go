@@ -29,19 +29,25 @@ type OpenTelemetry struct {
 	meter           metric.Meter
 }
 
-// Creates the OpenTelemetry objects, the given attributes are added to the resource that identifies the app.
-func New(ctx context.Context, serviceName string, attrs ...attribute.KeyValue) (*OpenTelemetry, error) {
+// Creates the OpenTelemetry objects. The given attributes are only added to the resource of the
+// traces: they identify a single run (run id, pull request), and on the metrics every resource
+// is a distinct series, which would split the executions of a command run by run.
+func New(ctx context.Context, serviceName string, traceAttrs ...attribute.KeyValue) (*OpenTelemetry, error) {
 	// Resources to identify the app
-	attrs = append(
-		attrs,
-		// See https://opentelemetry.io/docs/specs/semconv/resource/#service
-		semconv.ServiceName(serviceName),
-		semconv.ServiceVersion("0.0.1"),
-	)
 	resource, err := sdkres.Merge(
 		sdkres.Default(),
-		sdkres.NewWithAttributes(semconv.SchemaURL, attrs...),
+		sdkres.NewWithAttributes(
+			semconv.SchemaURL,
+			// See https://opentelemetry.io/docs/specs/semconv/resource/#service
+			semconv.ServiceName(serviceName),
+			semconv.ServiceVersion("0.0.1"),
+		),
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	traceResource, err := sdkres.Merge(resource, sdkres.NewWithAttributes(semconv.SchemaURL, traceAttrs...))
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +58,7 @@ func New(ctx context.Context, serviceName string, attrs ...attribute.KeyValue) (
 		return nil, err
 	}
 
-	tracerProvider := newTracerProvider(traceExporter, resource)
+	tracerProvider := newTracerProvider(traceExporter, traceResource)
 	tracer := tracerProvider.Tracer("")
 	otel.SetTracerProvider(tracerProvider)
 
