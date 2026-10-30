@@ -46,8 +46,8 @@ var metricResourceKeys = map[attribute.Key]bool{
 }
 
 // The attributes of the metrics of a command execution: the low cardinality resource attributes,
-// the name of the command and its exit code.
-func metricAttributes(resource *sdkres.Resource, process *mtrxtypes.Process, name string) []attribute.KeyValue {
+// the name of the command, its exit code and the attributes given to it.
+func metricAttributes(resource *sdkres.Resource, process *mtrxtypes.Process, name string, extras []attribute.KeyValue) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{}
 	for _, attr := range resource.Attributes() {
 		if metricResourceKeys[attr.Key] {
@@ -55,19 +55,20 @@ func metricAttributes(resource *sdkres.Resource, process *mtrxtypes.Process, nam
 		}
 	}
 
-	return append(
+	attrs = append(
 		attrs,
 		attribute.String("mtrx.command.name", name),
 		attribute.Int("process.exit.code", process.Metrics.ExitCode),
 	)
+	return append(attrs, extras...)
 }
 
-// Records the measurements of a command execution under the given name. Each execution is a single
-// sample of its measurements, so they are histograms: their distribution over many executions is
-// what matters.
-func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Resource, process *mtrxtypes.Process, name string) error {
+// Records the measurements of a command execution under the given name, with the given extra
+// attributes. Each execution is a single sample of its measurements, so they are histograms: their
+// distribution over many executions is what matters.
+func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Resource, process *mtrxtypes.Process, name string, extras []attribute.KeyValue) error {
 	metrics := process.Metrics
-	attrs := metricAttributes(resource, process, name)
+	attrs := metricAttributes(resource, process, name, extras)
 	withAttributes := func(extras ...attribute.KeyValue) metric.MeasurementOption {
 		return metric.WithAttributes(append(extras, attrs...)...)
 	}

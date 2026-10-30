@@ -70,6 +70,35 @@ func TestExecName(t *testing.T) {
 	}
 }
 
+func TestParseAttributes(t *testing.T) {
+	attrs, err := parseAttributes([]string{"test.suite.name=API", "test.suite.shard=2/4", "query=a=b", "empty="})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"test.suite.name=API", "test.suite.shard=2/4", "query=a=b", "empty="}
+	for i, attr := range attrs {
+		if got := string(attr.Key) + "=" + attr.Value.AsString(); got != expected[i] {
+			t.Errorf("got %q, expected %q", got, expected[i])
+		}
+	}
+
+	for _, invalid := range []string{"no-equal", "=value"} {
+		if _, err := parseAttributes([]string{invalid}); err == nil {
+			t.Errorf("%q: expected an error", invalid)
+		}
+	}
+}
+
+func TestExecRejectsAnInvalidAttribute(t *testing.T) {
+	// The command must not run: it would exit with 3
+	_, err := runRoot(t, "exec", "--attribute", "invalid", "sh", "-c", "exit 3")
+
+	var exit exitError
+	if err == nil || errors.As(err, &exit) {
+		t.Errorf("got %v, expected an invalid attribute error without running the command", err)
+	}
+}
+
 func TestExecRequiresACommand(t *testing.T) {
 	if _, err := runRoot(t, "exec"); err == nil {
 		t.Error("expected an error without a command")

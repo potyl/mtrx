@@ -102,6 +102,17 @@ echo "${tests[@]}" | mtrx exec --name "npm run test" xargs npm run test --
 The span is named after the command too, and keeps the actual command in `process.command` and
 `process.command_args`.
 
+`mtrx exec --attribute key=value` adds an attribute to the span and the metrics, it can be repeated. For instance to
+tell apart the test suites and shards that run the same command:
+
+```bash
+echo "${tests[@]}" | mtrx exec --name "npm run test" \
+  --attribute test.suite.name=API --attribute test.suite.shard=2/4 \
+  xargs npm run test --
+```
+
+Every value of a metric attribute is a time series, so an attribute should only have a few distinct values.
+
 For instance the median duration of a build on `main` over a week:
 
 ```promql
