@@ -12,12 +12,21 @@ As long as an OpenTelemetry stack is available and can be pointed to `mtrx` will
 
 ## Usage
 
-The program is meant to be used as the `time` command.
+`mtrx exec` is meant to be used as the `time` command.
 For instance, to capture metrics from a build command do:
 
 ```bash
-mtrx make build
+mtrx exec make build
 ```
+
+The flags after the command are the command's, `mtrx exec docker compose build --pull` passes `--pull` to docker.
+`mtrx exec` exits with the exit status of the command.
+
+| Command                   | Description                                                      |
+| ------------------------- | ---------------------------------------------------------------- |
+| `mtrx exec CMD [ARG]...`  | Runs the command and sends its trace and metrics                 |
+| `mtrx github export`      | Exports the trace of the current GitHub Actions run, see below   |
+| `mtrx version`            | Prints the version, like `mtrx --version`                        |
 
 ## OpenTelemetry
 
@@ -119,8 +128,8 @@ instance all the commands of a CI run:
 
 ```bash
 export TRACEPARENT=00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
-mtrx docker compose pull
-mtrx docker compose up -d
+mtrx exec docker compose pull
+mtrx exec docker compose up -d
 ```
 
 The child process receives these variables set to the `mtrx` span, so any instrumented program it runs (including
@@ -151,9 +160,9 @@ These parents only exist once the run is exported, from the last job of the work
       - name: Export run trace
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: mtrx --export-github-run
+        run: mtrx github export
 ```
 
-`mtrx --export-github-run` reads the run and its jobs from the GitHub API and exports, under the service `github-actions`, a root
+`mtrx github export` reads the run and its jobs from the GitHub API and exports, under the service `github-actions`, a root
 span for the run and a span per job with their start and end times. A job that didn't succeed gets an error status,
 and so does the run.

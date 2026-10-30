@@ -8,7 +8,7 @@ before:
 
 builds:
   - id: mtrx
-    main: ./cmd/mtrx
+    main: .
     binary: mtrx
     ldflags:
       - -s -w -X main.version={{.Version}}
