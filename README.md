@@ -46,7 +46,7 @@ variables (no GitHub API call), with the names of the
 [OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/) when they define
 one, under `github.*` otherwise:
 
-| Attribute                    | Source                                                    | Metrics | Spans |
+| Attribute                    | Source                                                    | Metrics | Traces |
 | ---------------------------- | --------------------------------------------------------- | ------- | ----- |
 | `vcs.provider.name`          | `github`                                                  |         | yes   |
 | `vcs.owner.name`             | `GITHUB_REPOSITORY_OWNER`                                 | yes     | yes   |
@@ -74,11 +74,14 @@ one, under `github.*` otherwise:
 merge queue entry, otherwise `GITHUB_REF_NAME`. It's on the metrics, so the executions of a branch can be compared
 whether they come from pushes, pull requests or the merge queue.
 
-The metrics and the span also have the command line (`process.command_line` on the metrics, `process.command` and
-`process.command_args` on the span) and its exit code (`process.exit.code`). A non zero exit code makes the span an
-error, with `error.type` set to the exit code. Every combination of attribute values is a time series, so the metrics
-only get the attributes with a low cardinality. The span gets all of them, plus the process ids, and the page faults,
-context switches and file system bytes as attributes.
+These attributes are the same for everything a process sends, so on the traces they're resource attributes
+(`resource.vcs.repository.name` in TraceQL). The span of a command only has what describes the execution: the
+process (`process.command`, `process.command_args`, `process.pid`, ...), its exit code (`process.exit.code`) and its
+resource usage (`mtrx.page_faults.*`, `mtrx.context_switches.*`, `mtrx.fs.*_bytes`). A non zero exit code makes the
+span an error, with `error.type` set to the exit code.
+
+Every combination of attribute values is a time series, so the metrics only get the attributes with a low cardinality,
+as data point attributes, plus the command line (`process.command_line`) and its exit code (`process.exit.code`).
 
 For instance the median duration of a build on `main` over a week:
 
