@@ -33,7 +33,7 @@ func collect(t *testing.T, resource *sdkres.Resource, process *mtrxtypes.Process
 	reader := sdkmetric.NewManualReader()
 	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
 
-	if err := CommandMetrics(ctx, meter, resource, process); err != nil {
+	if err := CommandMetrics(ctx, meter, resource, process, "make build"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -153,13 +153,13 @@ func TestMetricAttributesHaveALowCardinality(t *testing.T) {
 	process := newTestProcess()
 	process.Metrics.ExitCode = 2
 
-	got := attribute.NewSet(metricAttributes(resource, process)...)
+	got := attribute.NewSet(metricAttributes(resource, process, "make build")...)
 	expected := attribute.NewSet(
 		attribute.String("vcs.owner.name", "cloudbeds"),
 		attribute.String("vcs.repository.name", "mfd"),
 		attribute.String("vcs.ref.base.name", "main"),
 		attribute.String("cicd.pipeline.task.name", "phpstan"),
-		attribute.String("process.command_line", "make build"),
+		attribute.String("mtrx.command.name", "make build"),
 		attribute.Int("process.exit.code", 2),
 	)
 	if !got.Equals(&expected) {

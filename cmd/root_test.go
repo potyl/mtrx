@@ -60,6 +60,16 @@ func TestExecReturnsTheExitCode(t *testing.T) {
 	}
 }
 
+func TestExecName(t *testing.T) {
+	// --name is mtrx's, the flags after the command stay the command's
+	_, err := runRoot(t, "exec", "--name", "tests", "sh", "-c", "exit $#", "sh", "--name", "x")
+
+	var exit exitError
+	if !errors.As(err, &exit) || exit.code != 2 {
+		t.Errorf("got %v, expected the command to get its 2 arguments and exit with 2", err)
+	}
+}
+
 func TestExecRequiresACommand(t *testing.T) {
 	if _, err := runRoot(t, "exec"); err == nil {
 		t.Error("expected an error without a command")

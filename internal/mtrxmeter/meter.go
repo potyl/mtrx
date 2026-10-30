@@ -2,14 +2,12 @@ package mtrxmeter
 
 import (
 	"context"
-	"strings"
 
 	"mtrx/internal/mtrxtypes"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	sdkres "go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
 // Bucket boundaries in seconds, from sub-second commands up to the hour long ones of a CI pipeline
@@ -48,8 +46,8 @@ var metricResourceKeys = map[attribute.Key]bool{
 }
 
 // The attributes of the metrics of a command execution: the low cardinality resource attributes,
-// the command line and its exit code.
-func metricAttributes(resource *sdkres.Resource, process *mtrxtypes.Process) []attribute.KeyValue {
+// the name of the command and its exit code.
+func metricAttributes(resource *sdkres.Resource, process *mtrxtypes.Process, name string) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{}
 	for _, attr := range resource.Attributes() {
 		if metricResourceKeys[attr.Key] {
@@ -57,19 +55,19 @@ func metricAttributes(resource *sdkres.Resource, process *mtrxtypes.Process) []a
 		}
 	}
 
-	commandLine := strings.Join(append([]string{process.Command}, process.CommandArgs...), " ")
 	return append(
 		attrs,
-		semconv.ProcessCommandLine(commandLine),
+		attribute.String("mtrx.command.name", name),
 		attribute.Int("process.exit.code", process.Metrics.ExitCode),
 	)
 }
 
-// Records the measurements of a command execution. Each execution is a single sample of its
-// measurements, so they are histograms: their distribution over many executions is what matters.
-func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Resource, process *mtrxtypes.Process) error {
+// Records the measurements of a command execution under the given name. Each execution is a single
+// sample of its measurements, so they are histograms: their distribution over many executions is
+// what matters.
+func CommandMetrics(ctx context.Context, meter metric.Meter, resource *sdkres.Resource, process *mtrxtypes.Process, name string) error {
 	metrics := process.Metrics
-	attrs := metricAttributes(resource, process)
+	attrs := metricAttributes(resource, process, name)
 	withAttributes := func(extras ...attribute.KeyValue) metric.MeasurementOption {
 		return metric.WithAttributes(append(extras, attrs...)...)
 	}
