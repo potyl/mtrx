@@ -32,15 +32,14 @@ func NewProcessRuntimeResource(process *mtrxtypes.Process) *sdkres.Resource {
 // GitHub Attributes
 //
 
-// The attributes of the repository, refs and job, named after the OpenTelemetry semantic conventions
-// (vcs.*, cicd.*) when they define them, under github.* otherwise.
+// The attributes of the run: the repository, the refs and the workflow. They're named after the
+// OpenTelemetry semantic conventions (vcs.*, cicd.*) when they define them, under github.* otherwise.
 func NewGitHubResource() *sdkres.Resource {
 	attrs := []attribute.KeyValue{
 		envKeyValue("GITHUB_REPOSITORY_OWNER", "vcs.owner.name"), // "cloudbeds"
 		envKeyValue("GITHUB_REF_TYPE", "vcs.ref.head.type"),      // "branch" or "tag"
 		envKeyValue("GITHUB_SHA", "vcs.ref.head.revision"),       // the merge commit for a pull request
 		envKeyValue("GITHUB_WORKFLOW", "cicd.pipeline.name"),     // "PR Checks"
-		envKeyValue("GITHUB_JOB", "cicd.pipeline.task.name"),     // "test"
 		envKeyValue("GITHUB_ACTOR", "github.actor"),              // "username"
 		envKeyValue("GITHUB_EVENT_NAME", "github.event.name"),    // "pull_request"
 	}
@@ -89,15 +88,17 @@ func baseRef() (name string, refType string) {
 }
 
 //
-// GitHub Runner Attributes
+// GitHub Job Attributes
 //
 
 // The values of RUNNER_ARCH and RUNNER_OS mapped to the ones of host.arch and os.type
 var hostArchs = map[string]string{"X86": "x86", "X64": "amd64", "ARM": "arm32", "ARM64": "arm64"}
 var osTypes = map[string]string{"Linux": "linux", "Windows": "windows", "macOS": "darwin"}
 
-func NewGitHubRunnerResource() *sdkres.Resource {
+// The attributes of the job and of the runner it runs on.
+func NewGitHubJobResource() *sdkres.Resource {
 	attrs := []attribute.KeyValue{
+		envKeyValue("GITHUB_JOB", "cicd.pipeline.task.name"),           // "test"
 		envKeyValue("RUNNER_NAME", "cicd.worker.name"),                 // "x16-core-abc12"
 		envKeyValue("RUNNER_ENVIRONMENT", "github.runner.environment"), // "github-hosted" or "self-hosted"
 		envMappedKeyValue("RUNNER_ARCH", "host.arch", hostArchs),       // "X64" -> "amd64"

@@ -96,7 +96,7 @@ func exec(cmd []string) int {
 	// Add the resources collected from environment and the child process
 	resourcesList := []*sdkres.Resource{
 		mtrxres.NewGitHubResource(),
-		mtrxres.NewGitHubRunnerResource(),
+		mtrxres.NewGitHubJobResource(),
 		mtrxres.NewProcessRuntimeResource(process),
 	}
 
