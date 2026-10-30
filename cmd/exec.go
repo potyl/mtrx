@@ -21,28 +21,63 @@ import (
 )
 
 func newExecCmd(version string) *cobra.Command {
+	var name string
+	var attributes []string
+
 	cmd := &cobra.Command{
 		Use:   "exec CMD [ARG]...",
 		Short: "Run a command and send its trace and metrics",
 		Long: `exec runs the command and exits with its exit status. Once it exits, its span and its metrics
 are sent to the OpenTelemetry collector configured with the OTEL_* environment variables.
 
-The flags after the command are the command's: mtrx exec docker compose build --pull.`,
-		Example: "  mtrx exec docker compose build --with-dependencies cli",
-		Args:    cobra.MinimumNArgs(1),
+The flags after the command are the command's: mtrx exec docker compose build --pull.
+
+The span and the metrics are named after the command line, or after --name: a command line that
+changes from one execution to the next, like a list of test files, would otherwise make each
+execution a new time series.
+
+--attribute adds an attribute to the span and the metrics, it can be repeated. Every value of a
+metric attribute is a time series, so they should have a few distinct values only.`,
+		Example: `  mtrx exec docker compose build --with-dependencies cli
+  echo "${tests[@]}" | mtrx exec --name "npm run test" \
+    --attribute test.suite.name=API --attribute test.suite.shard=2/4 xargs npm run test --`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if exitCode := execCommand(version, args); exitCode != 0 {
+			attrs, err := parseAttributes(attributes)
+			if err != nil {
+				return err
+			}
+			if exitCode := execCommand(version, name, attrs, args); exitCode != 0 {
 				return exitError{exitCode}
 			}
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&name, "name", "", "name of the command in the span and the metrics (default: the command line)")
+	cmd.Flags().StringArrayVar(&attributes, "attribute", nil, "`key=value` attribute of the span and the metrics, can be repeated")
 	// Everything from the command on is passed to it, flags included
 	cmd.Flags().SetInterspersed(false)
 	return cmd
 }
 
-func execCommand(version string, cmd []string) int {
+// Parses the key=value attributes, the value can contain "=" and be empty.
+func parseAttributes(keyValues []string) ([]attribute.KeyValue, error) {
+	attrs := []attribute.KeyValue{}
+	for _, keyValue := range keyValues {
+		key, value, found := strings.Cut(keyValue, "=")
+		if !found || key == "" {
+			return nil, fmt.Errorf("invalid attribute %q, expected key=value", keyValue)
+		}
+		attrs = append(attrs, attribute.String(key, value))
+	}
+	return attrs, nil
+}
+
+func execCommand(version string, name string, attrs []attribute.KeyValue, cmd []string) int {
+	if name == "" {
+		name = strings.Join(cmd, " ")
+	}
+
 	// Create the OpenTelemetry objects
 	ctx := context.Background()
 
@@ -78,7 +113,12 @@ func execCommand(version string, cmd []string) int {
 	}
 
 	// Start a span
-	spanCtx, span := openTelemetry.StartSpan(parentCtx, strings.Join(cmd, " "))
+	spanCtx, span := openTelemetry.StartSpan(
+		parentCtx,
+		name,
+		trace.WithAttributes(attribute.String("mtrx.command.name", name)),
+		trace.WithAttributes(attrs...),
+	)
 	defer span.End()
 
 	// Start the child process with our span as its parent
@@ -103,7 +143,7 @@ func execCommand(version string, cmd []string) int {
 	}
 
 	meter := openTelemetry.Meter()
-	if err := mtrxmeter.CommandMetrics(ctx, meter, resource, process); err != nil {
+	if err := mtrxmeter.CommandMetrics(ctx, meter, resource, process, name, attrs); err != nil {
 		log.Fatal(err)
 	}
 

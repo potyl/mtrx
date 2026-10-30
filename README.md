@@ -90,14 +90,35 @@ resource usage (`mtrx.page_faults.*`, `mtrx.context_switches.*`, `mtrx.fs.*_byte
 span an error, with `error.type` set to the exit code.
 
 Every combination of attribute values is a time series, so the metrics only get the attributes with a low cardinality,
-as data point attributes, plus the command line (`process.command_line`) and its exit code (`process.exit.code`).
+as data point attributes, plus the name of the command (`mtrx.command.name`) and its exit code (`process.exit.code`).
+
+The name of the command is its command line, or the name given with `mtrx exec --name`. A command line that changes
+from one execution to the next, like a list of test files, would otherwise make each execution a new time series:
+
+```bash
+echo "${tests[@]}" | mtrx exec --name "npm run test" xargs npm run test --
+```
+
+The span is named after the command too, and keeps the actual command in `process.command` and
+`process.command_args`.
+
+`mtrx exec --attribute key=value` adds an attribute to the span and the metrics, it can be repeated. For instance to
+tell apart the test suites and shards that run the same command:
+
+```bash
+echo "${tests[@]}" | mtrx exec --name "npm run test" \
+  --attribute test.suite.name=API --attribute test.suite.shard=2/4 \
+  xargs npm run test --
+```
+
+Every value of a metric attribute is a time series, so an attribute should only have a few distinct values.
 
 For instance the median duration of a build on `main` over a week:
 
 ```promql
 histogram_quantile(0.5, sum by (le) (increase(mtrx_command_duration_bucket{
   vcs_owner_name="cloudbeds", vcs_repository_name="mfd", vcs_ref_base_name="main",
-  process_command_line="docker compose build"}[1w])))
+  mtrx_command_name="docker compose build"}[1w])))
 ```
 
 ### Configuration
