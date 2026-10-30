@@ -1,12 +1,10 @@
-package main
+package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -16,40 +14,35 @@ import (
 	"mtrx/internal/mtrxproc"
 	"mtrx/internal/mtrxres"
 
-	"go.opentelemetry.io/otel"
+	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Exports the root and job spans of the current GitHub Actions run instead of running a command
-const exportGitHubRunFlag = "--export-github-run"
+func newExecCmd(version string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "exec CMD [ARG]...",
+		Short: "Run a command and send its trace and metrics",
+		Long: `exec runs the command and exits with its exit status. Once it exits, its span and its metrics
+are sent to the OpenTelemetry collector configured with the OTEL_* environment variables.
 
-// The release, set at build time with -ldflags "-X main.version=..."
-var version = "dev"
-
-func main() {
-	if len(os.Args) == 1 {
-		name := filepath.Base(os.Args[0])
-		fmt.Printf("Usage: %v CMD [ARG]...\n       %v %v\n", name, name, exportGitHubRunFlag)
-		return
+The flags after the command are the command's: mtrx exec docker compose build --pull.`,
+		Example: "  mtrx exec docker compose build --with-dependencies cli",
+		Args:    cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if exitCode := execCommand(version, args); exitCode != 0 {
+				return exitError{exitCode}
+			}
+			return nil
+		},
 	}
-
-	if os.Args[1] == exportGitHubRunFlag {
-		os.Exit(exportGitHubRun())
-	}
-
-	// Command to start
-	cmd := os.Args[1:]
-
-	// Run the main logic
-	exitCode := exec(cmd)
-
-	// Exit with the same exist status as the child process
-	os.Exit(exitCode)
+	// Everything from the command on is passed to it, flags included
+	cmd.Flags().SetInterspersed(false)
+	return cmd
 }
 
-func exec(cmd []string) int {
+func execCommand(version string, cmd []string) int {
 	// Create the OpenTelemetry objects
 	ctx := context.Background()
 
@@ -78,7 +71,7 @@ func exec(cmd []string) int {
 	}()
 
 	// The span's parent is taken from the environment (TRACEPARENT) if present, otherwise in GitHub Actions
-	// it's the span of the job, exported at the end of the run by --export-github-run
+	// it's the span of the job, exported at the end of the run by mtrx github export
 	parentCtx := mtrxotel.ContextFromEnv(ctx)
 	if inGitHubActions && !trace.SpanContextFromContext(parentCtx).IsValid() {
 		parentCtx = trace.ContextWithRemoteSpanContext(parentCtx, run.JobSpanContext(os.Getenv("RUNNER_NAME")))
@@ -116,46 +109,6 @@ func exec(cmd []string) int {
 
 	// Exit with the same exist status as the child process
 	return process.Metrics.ExitCode
-}
-
-func exportGitHubRun() int {
-	ctx := context.Background()
-
-	run, inGitHubActions := mtrxgithub.RunFromEnv()
-	if !inGitHubActions {
-		log.Printf("%v must run in a GitHub Actions job", exportGitHubRunFlag)
-		return 1
-	}
-
-	client, err := mtrxgithub.NewClientFromEnv()
-	if err != nil {
-		log.Print(err)
-		return 1
-	}
-
-	// The spans are exported as they end and the SDK only reports the export errors to its handler
-	var exportErr error
-	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		exportErr = errors.Join(exportErr, err)
-	}))
-
-	// Only the run attributes: the job ones would describe the job doing the export
-	traceAttrs := append(mtrxres.NewGitHubResource().Attributes(), run.Attributes()...)
-	openTelemetry, err := mtrxotel.New(ctx, "github-actions", version, traceAttrs...)
-	if err != nil {
-		log.Print(err)
-		return 1
-	}
-
-	jobCount, err := mtrxgithub.ExportRun(ctx, openTelemetry, client, run)
-	err = errors.Join(err, openTelemetry.Shutdown(ctx), exportErr)
-	if err != nil {
-		log.Print(err)
-		return 1
-	}
-
-	fmt.Printf("Exported trace %v: run %v attempt %v with %v job spans\n", run.TraceID(), run.ID, run.Attempt, jobCount)
-	return 0
 }
 
 // Records the exit code of the command on its span, a non zero exit code makes the span an error
