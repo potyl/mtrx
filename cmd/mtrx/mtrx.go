@@ -19,7 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	sdkres "go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -54,14 +53,20 @@ func exec(cmd []string) int {
 	// Create the OpenTelemetry objects
 	ctx := context.Background()
 
-	// In GitHub Actions the spans are annotated with the run
+	// The run, repository and job are the same for everything the process sends: they go on the
+	// resource of the traces, the span only gets what describes the execution
+	envResource, err := mtrxres.MergeResources(mtrxres.NewGitHubResource(), mtrxres.NewGitHubJobResource())
+	if err != nil {
+		log.Fatal(err)
+	}
+	traceAttrs := envResource.Attributes()
+
 	run, inGitHubActions := mtrxgithub.RunFromEnv()
-	var attrs []attribute.KeyValue
 	if inGitHubActions {
-		attrs = run.Attributes()
+		traceAttrs = append(traceAttrs, run.Attributes()...)
 	}
 
-	openTelemetry, err := mtrxotel.New(ctx, "mtrx", version, attrs...)
+	openTelemetry, err := mtrxotel.New(ctx, "mtrx", version, traceAttrs...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,26 +98,16 @@ func exec(cmd []string) int {
 	span.AddEvent("Child process finished")
 	setExitStatus(span, process.Metrics.ExitCode)
 
-	// Add the resources collected from environment and the child process
-	resourcesList := []*sdkres.Resource{
-		mtrxres.NewGitHubResource(),
-		mtrxres.NewGitHubRunnerResource(),
-		mtrxres.NewProcessRuntimeResource(process),
-	}
+	// The span describes the execution: the process and its resource usage
+	processResource := mtrxres.NewProcessRuntimeResource(process)
+	span.SetAttributes(processResource.Attributes()...)
+	span.SetAttributes(mtrxmeter.UsageAttributes(process)...)
 
-	// Merge all resources into a single one
-	resource, err := mtrxres.MergeResources(resourcesList...)
+	// The metrics pick their low cardinality attributes among the environment and process ones
+	resource, err := mtrxres.MergeResources(envResource, processResource)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Enhance the span with attributes based on process
-	span.SetAttributes(resource.Attributes()...)
-	span.SetAttributes(mtrxmeter.UsageAttributes(process)...)
-
-	// TODO add
-	// - https://opentelemetry.io/docs/specs/semconv/resource/host/
-	// - https://opentelemetry.io/docs/specs/semconv/resource/os/
 
 	meter := openTelemetry.Meter()
 	if err := mtrxmeter.CommandMetrics(ctx, meter, resource, process); err != nil {
@@ -144,7 +139,9 @@ func exportGitHubRun() int {
 		exportErr = errors.Join(exportErr, err)
 	}))
 
-	openTelemetry, err := mtrxotel.New(ctx, "github-actions", version, run.Attributes()...)
+	// Only the run attributes: the job ones would describe the job doing the export
+	traceAttrs := append(mtrxres.NewGitHubResource().Attributes(), run.Attributes()...)
+	openTelemetry, err := mtrxotel.New(ctx, "github-actions", version, traceAttrs...)
 	if err != nil {
 		log.Print(err)
 		return 1

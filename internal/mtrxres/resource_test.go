@@ -54,7 +54,6 @@ func TestGitHubResource(t *testing.T) {
 	t.Setenv("GITHUB_REF_NAME", "13140/merge")
 	t.Setenv("GITHUB_HEAD_REF", "emo/feature")
 	t.Setenv("GITHUB_BASE_REF", "main")
-	t.Setenv("GITHUB_JOB", "phpstan")
 	t.Setenv("GITHUB_ACTOR", "octocat")
 	t.Setenv("GITHUB_EVENT_NAME", "pull_request")
 
@@ -69,7 +68,6 @@ func TestGitHubResource(t *testing.T) {
 		"vcs.ref.base.name":       "main",
 		"vcs.ref.base.type":       "branch",
 		"cicd.pipeline.name":      "PR Checks",
-		"cicd.pipeline.task.name": "phpstan",
 		"github.actor":            "octocat",
 		"github.event.name":       "pull_request",
 	}
@@ -78,7 +76,7 @@ func TestGitHubResource(t *testing.T) {
 	}
 }
 
-func TestGitHubRunnerResource(t *testing.T) {
+func TestGitHubJobResource(t *testing.T) {
 	tests := []struct {
 		arch, os         string
 		hostArch, osType string
@@ -88,18 +86,20 @@ func TestGitHubRunnerResource(t *testing.T) {
 		{"RISCV", "macOS", "riscv", "darwin"},
 	}
 	for _, test := range tests {
+		t.Setenv("GITHUB_JOB", "phpstan")
 		t.Setenv("RUNNER_NAME", "x16-core-abc")
 		t.Setenv("RUNNER_ENVIRONMENT", "self-hosted")
 		t.Setenv("RUNNER_ARCH", test.arch)
 		t.Setenv("RUNNER_OS", test.os)
 
 		expected := map[attribute.Key]string{
+			"cicd.pipeline.task.name":   "phpstan",
 			"cicd.worker.name":          "x16-core-abc",
 			"github.runner.environment": "self-hosted",
 			"host.arch":                 test.hostArch,
 			"os.type":                   test.osType,
 		}
-		if got := attributesByKey(NewGitHubRunnerResource()); !maps.Equal(got, expected) {
+		if got := attributesByKey(NewGitHubJobResource()); !maps.Equal(got, expected) {
 			t.Errorf("%v %v: got %v, expected %v", test.arch, test.os, got, expected)
 		}
 	}
