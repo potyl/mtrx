@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"mtrx/internal/mtrxgithub"
 	"mtrx/internal/mtrxotel"
@@ -28,7 +29,10 @@ func newGitHubExportCmd(version string) *cobra.Command {
 		Short: "Export the trace of the current GitHub Actions run",
 		Long: `export reads the current run attempt and its jobs from the GitHub API (GITHUB_TOKEN) and exports
 a root span for the run and a span per job, the parents of the spans of the commands run with
-mtrx exec. Run it from the last job of the workflow: every other job must have completed.`,
+mtrx exec. Run it from the last job of the workflow: every other job must have completed.
+
+The step outputs (GITHUB_OUTPUT) get the trace-id, the start-time-ms and end-time-ms of the root
+span in Unix milliseconds, and the job-count, for instance to link to the trace.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return exportGitHubRun(cmd, version)
@@ -62,11 +66,15 @@ func exportGitHubRun(cmd *cobra.Command, version string) error {
 		return err
 	}
 
-	jobCount, err := mtrxgithub.ExportRun(ctx, openTelemetry, client, run)
+	exported, err := mtrxgithub.ExportRun(ctx, openTelemetry, client, run)
 	if err := errors.Join(err, openTelemetry.Shutdown(ctx), exportErr); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Exported trace %v: run %v attempt %v with %v job spans\n", run.TraceID(), run.ID, run.Attempt, jobCount)
+	fmt.Fprintf(cmd.OutOrStdout(), "Exported trace %v: run %v attempt %v with %v job spans\n", exported.TraceID, run.ID, run.Attempt, exported.JobCount)
+
+	if outputPath := os.Getenv("GITHUB_OUTPUT"); outputPath != "" {
+		return mtrxgithub.AppendOutputs(outputPath, exported.Outputs())
+	}
 	return nil
 }

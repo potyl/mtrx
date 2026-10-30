@@ -187,3 +187,12 @@ These parents only exist once the run is exported, from the last job of the work
 `mtrx github export` reads the run and its jobs from the GitHub API and exports, under the service `github-actions`, a root
 span for the run and a span per job with their start and end times. A job that didn't succeed gets an error status,
 and so does the run.
+
+The step outputs get the exported trace, for instance to link to it in a tracing UI:
+
+| Output          | Value                                                                  |
+| --------------- | ---------------------------------------------------------------------- |
+| `trace-id`      | The id of the trace                                                    |
+| `start-time-ms` | The start of the trace (the run attempt's start), in Unix milliseconds |
+| `end-time-ms`   | The end of the trace (the export), in Unix milliseconds                |
+| `job-count`     | The number of job spans exported                                       |
