@@ -78,6 +78,7 @@ one, under `github.*` otherwise:
 | `github.actor`               | `GITHUB_ACTOR`                                            |         | yes   |
 | `github.run.attempt`         | `GITHUB_RUN_ATTEMPT`                                      |         | yes   |
 | `github.runner.environment`  | `RUNNER_ENVIRONMENT`                                      |         | yes   |
+| `github.workflow.name`       | the file name of `GITHUB_WORKFLOW_REF`, `pr.yaml`         | yes     | yes   |
 
 `vcs.ref.base.name` is the branch the code lands in: the target branch of a pull request (`GITHUB_BASE_REF`) or of a
 merge queue entry, otherwise `GITHUB_REF_NAME`. It's on the metrics, so the executions of a branch can be compared
