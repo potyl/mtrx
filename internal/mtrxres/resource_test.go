@@ -35,6 +35,23 @@ func TestBaseRef(t *testing.T) {
 	}
 }
 
+func TestWorkflowName(t *testing.T) {
+	tests := []struct {
+		workflowRef string
+		expected    string
+	}{
+		{"foo/bar/.github/workflows/pull-request.yaml@refs/heads/main", "pull-request.yaml"},
+		{"foo/bar/.github/workflows/pull-request.yaml@refs/pull/13528/merge", "pull-request.yaml"},
+		{"potyl/mtrx/.github/workflows/release.yml@refs/tags/v1.2.0", "release.yml"},
+		{"", ""},
+	}
+	for _, test := range tests {
+		if got := workflowName(test.workflowRef); got != test.expected {
+			t.Errorf("%q: got %q, expected %q", test.workflowRef, got, test.expected)
+		}
+	}
+}
+
 // Returns the attributes of the resource by key
 func attributesByKey(resource *sdkres.Resource) map[attribute.Key]string {
 	attrs := map[attribute.Key]string{}
@@ -50,6 +67,7 @@ func TestGitHubResource(t *testing.T) {
 	t.Setenv("GITHUB_REPOSITORY_OWNER", "cloudbeds")
 	t.Setenv("GITHUB_SHA", "1cd33039dc2f8a7f1d6c2b07c0ab5e4c8fd1e3a2")
 	t.Setenv("GITHUB_WORKFLOW", "PR Checks")
+	t.Setenv("GITHUB_WORKFLOW_REF", "foo/bar/.github/workflows/pull-request.yaml@refs/pull/13140/merge")
 	t.Setenv("GITHUB_REF_TYPE", "branch")
 	t.Setenv("GITHUB_REF_NAME", "13140/merge")
 	t.Setenv("GITHUB_HEAD_REF", "emo/feature")
@@ -68,6 +86,7 @@ func TestGitHubResource(t *testing.T) {
 		"vcs.ref.base.name":       "main",
 		"vcs.ref.base.type":       "branch",
 		"cicd.pipeline.name":      "PR Checks",
+		"github.workflow.name":    "pull-request.yaml",
 		"github.actor":            "octocat",
 		"github.event.name":       "pull_request",
 	}

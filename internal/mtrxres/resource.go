@@ -3,6 +3,7 @@ package mtrxres
 import (
 	"mtrx/internal/mtrxtypes"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 
@@ -43,6 +44,10 @@ func NewGitHubResource() *sdkres.Resource {
 		envKeyValue("GITHUB_ACTOR", "github.actor"),              // "username"
 		envKeyValue("GITHUB_EVENT_NAME", "github.event.name"),    // "pull_request"
 	}
+	// The workflow file, which survives the renames of the workflow's name
+	if workflowName := workflowName(os.Getenv("GITHUB_WORKFLOW_REF")); workflowName != "" {
+		attrs = append(attrs, attribute.String("github.workflow.name", workflowName))
+	}
 	// The repository name without its owner: "mfd" for "cloudbeds/mfd"
 	repository := os.Getenv("GITHUB_REPOSITORY")
 	if _, name, found := strings.Cut(repository, "/"); found {
@@ -67,6 +72,17 @@ func NewGitHubResource() *sdkres.Resource {
 		)
 	}
 	return sdkres.NewSchemaless(attrs...)
+}
+
+// Returns the file name of the workflow from GITHUB_WORKFLOW_REF, "pull-request.yaml" for
+// "foo/bar/.github/workflows/pull-request.yaml@refs/heads/main". Unlike GITHUB_WORKFLOW
+// (the workflow's name) it doesn't change when the workflow is renamed.
+func workflowName(workflowRef string) string {
+	workflowPath, _, _ := strings.Cut(workflowRef, "@")
+	if workflowPath == "" {
+		return ""
+	}
+	return path.Base(workflowPath)
 }
 
 // The ref of a merge queue entry: gh-readonly-queue/<base branch>/pr-<number>-<sha>
