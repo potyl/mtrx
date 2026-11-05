@@ -118,7 +118,7 @@ For instance the median duration of a build on `main` over a week:
 
 ```promql
 histogram_quantile(0.5, sum by (le) (increase(mtrx_command_duration_bucket{
-  vcs_owner_name="cloudbeds", vcs_repository_name="mfd", vcs_ref_base_name="main",
+  vcs_owner_name="foo", vcs_repository_name="bar", vcs_ref_base_name="main",
   mtrx_command_name="docker compose build"}[1w])))
 ```
 

@@ -37,7 +37,7 @@ func NewProcessRuntimeResource(process *mtrxtypes.Process) *sdkres.Resource {
 // OpenTelemetry semantic conventions (vcs.*, cicd.*) when they define them, under github.* otherwise.
 func NewGitHubResource() *sdkres.Resource {
 	attrs := []attribute.KeyValue{
-		envKeyValue("GITHUB_REPOSITORY_OWNER", "vcs.owner.name"), // "cloudbeds"
+		envKeyValue("GITHUB_REPOSITORY_OWNER", "vcs.owner.name"), // "foo"
 		envKeyValue("GITHUB_REF_TYPE", "vcs.ref.head.type"),      // "branch" or "tag"
 		envKeyValue("GITHUB_SHA", "vcs.ref.head.revision"),       // the merge commit for a pull request
 		envKeyValue("GITHUB_WORKFLOW", "cicd.pipeline.name"),     // "PR Checks"
@@ -48,7 +48,7 @@ func NewGitHubResource() *sdkres.Resource {
 	if workflowName := workflowName(os.Getenv("GITHUB_WORKFLOW_REF")); workflowName != "" {
 		attrs = append(attrs, attribute.String("github.workflow.name", workflowName))
 	}
-	// The repository name without its owner: "mfd" for "cloudbeds/mfd"
+	// The repository name without its owner: "bar" for "foo/bar"
 	repository := os.Getenv("GITHUB_REPOSITORY")
 	if _, name, found := strings.Cut(repository, "/"); found {
 		attrs = append(

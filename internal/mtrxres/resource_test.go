@@ -63,8 +63,8 @@ func attributesByKey(resource *sdkres.Resource) map[attribute.Key]string {
 
 func TestGitHubResource(t *testing.T) {
 	t.Setenv("GITHUB_SERVER_URL", "https://github.com")
-	t.Setenv("GITHUB_REPOSITORY", "cloudbeds/mfd")
-	t.Setenv("GITHUB_REPOSITORY_OWNER", "cloudbeds")
+	t.Setenv("GITHUB_REPOSITORY", "foo/bar")
+	t.Setenv("GITHUB_REPOSITORY_OWNER", "foo")
 	t.Setenv("GITHUB_SHA", "1cd33039dc2f8a7f1d6c2b07c0ab5e4c8fd1e3a2")
 	t.Setenv("GITHUB_WORKFLOW", "PR Checks")
 	t.Setenv("GITHUB_WORKFLOW_REF", "foo/bar/.github/workflows/pull-request.yaml@refs/pull/13140/merge")
@@ -77,9 +77,9 @@ func TestGitHubResource(t *testing.T) {
 
 	expected := map[attribute.Key]string{
 		"vcs.provider.name":       "github",
-		"vcs.owner.name":          "cloudbeds",
-		"vcs.repository.name":     "mfd",
-		"vcs.repository.url.full": "https://github.com/cloudbeds/mfd",
+		"vcs.owner.name":          "foo",
+		"vcs.repository.name":     "bar",
+		"vcs.repository.url.full": "https://github.com/foo/bar",
 		"vcs.ref.head.name":       "emo/feature",
 		"vcs.ref.head.type":       "branch",
 		"vcs.ref.head.revision":   "1cd33039dc2f8a7f1d6c2b07c0ab5e4c8fd1e3a2",

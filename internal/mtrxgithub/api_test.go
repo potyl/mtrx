@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-github/v92/github"
 )
 
-const runAttemptPath = "/repos/cloudbeds/mfd/actions/runs/40561899477/attempts/1"
+const runAttemptPath = "/repos/foo/bar/actions/runs/40561899477/attempts/1"
 
 func newTestClient(t *testing.T, handler http.HandlerFunc) *github.Client {
 	server := httptest.NewServer(handler)
@@ -80,7 +80,7 @@ func TestFetchRunAttemptRejectsInvalidRun(t *testing.T) {
 	})
 
 	for _, invalid := range []Run{
-		{Repository: "mfd", ID: run.ID, Attempt: run.Attempt},
+		{Repository: "bar", ID: run.ID, Attempt: run.Attempt},
 		{Repository: run.Repository, ID: "abc", Attempt: run.Attempt},
 		{Repository: run.Repository, ID: run.ID, Attempt: "first"},
 	} {

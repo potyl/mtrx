@@ -141,8 +141,8 @@ func TestByteBuckets(t *testing.T) {
 
 func TestMetricAttributesHaveALowCardinality(t *testing.T) {
 	resource := sdkres.NewSchemaless(
-		attribute.String("vcs.owner.name", "cloudbeds"),
-		attribute.String("vcs.repository.name", "mfd"),
+		attribute.String("vcs.owner.name", "foo"),
+		attribute.String("vcs.repository.name", "bar"),
 		attribute.String("vcs.ref.head.name", "emo/feature"),
 		attribute.String("vcs.ref.base.name", "main"),
 		attribute.String("cicd.pipeline.task.name", "phpstan"),
@@ -156,8 +156,8 @@ func TestMetricAttributesHaveALowCardinality(t *testing.T) {
 	extras := []attribute.KeyValue{attribute.String("test.suite.name", "API")}
 	got := attribute.NewSet(metricAttributes(resource, process, "make build", extras)...)
 	expected := attribute.NewSet(
-		attribute.String("vcs.owner.name", "cloudbeds"),
-		attribute.String("vcs.repository.name", "mfd"),
+		attribute.String("vcs.owner.name", "foo"),
+		attribute.String("vcs.repository.name", "bar"),
 		attribute.String("vcs.ref.base.name", "main"),
 		attribute.String("cicd.pipeline.task.name", "phpstan"),
 		attribute.String("mtrx.command.name", "make build"),

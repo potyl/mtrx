@@ -6,7 +6,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-var run = Run{ServerURL: "https://github.com", Repository: "cloudbeds/mfd", ID: "40561899477", Attempt: "1", Ref: "refs/pull/13140/merge"}
+var run = Run{ServerURL: "https://github.com", Repository: "foo/bar", ID: "40561899477", Attempt: "1", Ref: "refs/pull/13140/merge"}
 
 // The ids are the ones computed by: printf '%s' "$repo/$run_id/$attempt/$suffix" | sha256sum
 func TestIDs(t *testing.T) {
@@ -15,9 +15,9 @@ func TestIDs(t *testing.T) {
 		got      string
 		expected string
 	}{
-		{"trace id", run.TraceID().String(), "59840d3e9264f39f5cbc97be40b9f257"},
-		{"root span id", run.RootSpanID().String(), "6ff929a3d2adde82"},
-		{"job span id", run.JobSpanID("x16-core-abc").String(), "0c719d7ef21030b0"},
+		{"trace id", run.TraceID().String(), "f545254ee3b570264c97ca2bb99aae46"},
+		{"root span id", run.RootSpanID().String(), "e9956f404d30e266"},
+		{"job span id", run.JobSpanID("x16-core-abc").String(), "5e64f39631b1bf06"},
 	}
 	for _, test := range tests {
 		if test.got != test.expected {
@@ -46,7 +46,7 @@ func TestAttributes(t *testing.T) {
 			[]attribute.KeyValue{
 				attribute.String("cicd.pipeline.run.id", "40561899477"),
 				attribute.String("github.run.attempt", "1"),
-				attribute.String("cicd.pipeline.run.url.full", "https://github.com/cloudbeds/mfd/actions/runs/40561899477/attempts/1"),
+				attribute.String("cicd.pipeline.run.url.full", "https://github.com/foo/bar/actions/runs/40561899477/attempts/1"),
 				attribute.String("vcs.change.id", "13140"),
 			},
 		},
@@ -55,7 +55,7 @@ func TestAttributes(t *testing.T) {
 			[]attribute.KeyValue{
 				attribute.String("cicd.pipeline.run.id", "40561899477"),
 				attribute.String("github.run.attempt", "1"),
-				attribute.String("cicd.pipeline.run.url.full", "https://github.com/cloudbeds/mfd/actions/runs/40561899477/attempts/1"),
+				attribute.String("cicd.pipeline.run.url.full", "https://github.com/foo/bar/actions/runs/40561899477/attempts/1"),
 			},
 		},
 	}

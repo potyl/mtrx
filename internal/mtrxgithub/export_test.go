@@ -17,7 +17,7 @@ var exported = ExportedTrace{
 
 func TestOutputs(t *testing.T) {
 	expected := []string{
-		"trace-id=59840d3e9264f39f5cbc97be40b9f257",
+		"trace-id=f545254ee3b570264c97ca2bb99aae46",
 		"start-time-ms=1793350000123",
 		"end-time-ms=1793351200456",
 		"job-count=35",
