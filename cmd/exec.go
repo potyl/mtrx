@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"strings"
 
@@ -105,12 +104,7 @@ func execCommand(version string, name string, attrs []attribute.KeyValue, cmd []
 		}
 	}()
 
-	// The span's parent is taken from the environment (TRACEPARENT) if present, otherwise in GitHub Actions
-	// it's the span of the job, exported at the end of the run by mtrx github export
-	parentCtx := mtrxotel.ContextFromEnv(ctx)
-	if inGitHubActions && !trace.SpanContextFromContext(parentCtx).IsValid() {
-		parentCtx = trace.ContextWithRemoteSpanContext(parentCtx, run.JobSpanContext(os.Getenv("RUNNER_NAME")))
-	}
+	parentCtx := parentContext(ctx, run, inGitHubActions)
 
 	// Start a span
 	spanCtx, span := openTelemetry.StartSpan(

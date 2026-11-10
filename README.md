@@ -26,6 +26,7 @@ The flags after the command are the command's, `mtrx exec docker compose build -
 | ------------------------- | ---------------------------------------------------------------- |
 | `mtrx exec CMD [ARG]...`  | Runs the command and sends its trace and metrics                 |
 | `mtrx github export`      | Exports the trace of the current GitHub Actions run, see below   |
+| `mtrx github context`     | Prints the trace context of the current GitHub Actions job       |
 | `mtrx version`            | Prints the version, like `mtrx --version`                        |
 
 ## OpenTelemetry
@@ -197,3 +198,23 @@ The step outputs get the exported trace, for instance to link to it in a tracing
 | `start-time-ms` | The start of the trace (the run attempt's start), in Unix milliseconds |
 | `end-time-ms`   | The end of the trace (the export), in Unix milliseconds                |
 | `job-count`     | The number of job spans exported                                       |
+
+### Steps that mtrx exec can't wrap
+
+`mtrx exec` can't wrap a `uses:` step. `mtrx github context` prints the parent it would give the command, the span of
+the job (or `TRACEPARENT` when it's set), in the syntax of an environment file: set it on the steps whose program is
+instrumented, or append it to `GITHUB_ENV` for the rest of the job.
+
+```yaml
+      - name: Trace context
+        id: trace
+        run: mtrx github context
+
+      - name: Docker build
+        uses: docker/build-push-action@v7
+        env:
+          TRACEPARENT: ${{ steps.trace.outputs.traceparent }}
+```
+
+The output is `TRACEPARENT=00-<trace id>-<job span id>-01`, followed by `TRACESTATE` and `BAGGAGE` when they have a
+value. The step outputs get `traceparent` and `trace-id`.

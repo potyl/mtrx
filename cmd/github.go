@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func newGitHubCmd(version string) *cobra.Command {
@@ -19,8 +20,49 @@ func newGitHubCmd(version string) *cobra.Command {
 		Use:   "github",
 		Short: "GitHub Actions commands",
 	}
-	cmd.AddCommand(newGitHubExportCmd(version))
+	cmd.AddCommand(newGitHubExportCmd(version), newGitHubContextCmd())
 	return cmd
+}
+
+func newGitHubContextCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "context",
+		Short: "Print the trace context of the current GitHub Actions job",
+		Long: `context prints the trace context that mtrx exec gives the commands it runs: TRACEPARENT when it's
+set, otherwise the span of the job. A step that mtrx exec can't wrap, like a uses: step, records its
+spans under the job's span once that variable is set in its environment.
+
+The output is in the syntax of an environment file, to be appended to GITHUB_ENV for the rest of the
+job or set on the steps that need it. TRACESTATE and BAGGAGE follow when they have a value. The step
+outputs (GITHUB_OUTPUT) get the traceparent and the trace-id.`,
+		Example: `  mtrx github context >> "$GITHUB_ENV"`,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return printGitHubContext(cmd)
+		},
+	}
+}
+
+func printGitHubContext(cmd *cobra.Command) error {
+	run, inGitHubActions := mtrxgithub.RunFromEnv()
+	ctx := parentContext(context.Background(), run, inGitHubActions)
+	spanContext := trace.SpanContextFromContext(ctx)
+	if !spanContext.IsValid() {
+		return errors.New("no trace context: TRACEPARENT isn't set and this isn't a GitHub Actions job")
+	}
+
+	for _, entry := range mtrxotel.PropagationEnv(ctx) {
+		fmt.Fprintln(cmd.OutOrStdout(), entry)
+	}
+
+	if outputPath := os.Getenv("GITHUB_OUTPUT"); outputPath != "" {
+		traceparent := fmt.Sprintf("00-%s-%s-%s", spanContext.TraceID(), spanContext.SpanID(), spanContext.TraceFlags())
+		return mtrxgithub.AppendOutputs(outputPath, []string{
+			"traceparent=" + traceparent,
+			"trace-id=" + spanContext.TraceID().String(),
+		})
+	}
+	return nil
 }
 
 func newGitHubExportCmd(version string) *cobra.Command {
