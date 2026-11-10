@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -108,6 +110,58 @@ func TestExecRequiresACommand(t *testing.T) {
 func TestBareCommandIsRejected(t *testing.T) {
 	if _, err := runRoot(t, "true"); err == nil {
 		t.Error("expected an error for a command without exec")
+	}
+}
+
+// The job of the run of run_test.go, its ids are known
+func setGitHubJobEnv(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "true")
+	t.Setenv("GITHUB_REPOSITORY", "foo/bar")
+	t.Setenv("GITHUB_RUN_ID", "40561899477")
+	t.Setenv("GITHUB_RUN_ATTEMPT", "1")
+	t.Setenv("RUNNER_NAME", "x16-core-abc")
+	t.Setenv("TRACEPARENT", "")
+	t.Setenv("TRACESTATE", "")
+	t.Setenv("BAGGAGE", "")
+	t.Setenv("GITHUB_OUTPUT", "")
+}
+
+func TestGitHubContextOutsideOfGitHubActions(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("TRACEPARENT", "")
+	if _, err := runRoot(t, "github", "context"); err == nil {
+		t.Error("expected an error outside of GitHub Actions without TRACEPARENT")
+	}
+}
+
+func TestGitHubContextOfTheJob(t *testing.T) {
+	setGitHubJobEnv(t)
+	outputPath := filepath.Join(t.TempDir(), "output")
+	t.Setenv("GITHUB_OUTPUT", outputPath)
+
+	output, err := runRoot(t, "github", "context")
+	expected := "TRACEPARENT=00-f545254ee3b570264c97ca2bb99aae46-5e64f39631b1bf06-01\n"
+	if err != nil || output != expected {
+		t.Errorf("got %q and %v, expected %q", output, err, expected)
+	}
+
+	outputs, err := os.ReadFile(outputPath)
+	expectedOutputs := "traceparent=00-f545254ee3b570264c97ca2bb99aae46-5e64f39631b1bf06-01\ntrace-id=f545254ee3b570264c97ca2bb99aae46\n"
+	if err != nil || string(outputs) != expectedOutputs {
+		t.Errorf("got %q and %v, expected the step outputs %q", outputs, err, expectedOutputs)
+	}
+}
+
+func TestGitHubContextPassesTheEnvironmentThrough(t *testing.T) {
+	setGitHubJobEnv(t)
+	t.Setenv("TRACEPARENT", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+	t.Setenv("TRACESTATE", "vendor=x")
+	t.Setenv("BAGGAGE", "team=ci")
+
+	output, err := runRoot(t, "github", "context")
+	expected := "TRACEPARENT=00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\nTRACESTATE=vendor=x\nBAGGAGE=team=ci\n"
+	if err != nil || output != expected {
+		t.Errorf("got %q and %v, expected %q", output, err, expected)
 	}
 }
 
