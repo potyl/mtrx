@@ -66,23 +66,31 @@ func printGitHubContext(cmd *cobra.Command) error {
 }
 
 func newGitHubExportCmd(version string) *cobra.Command {
-	return &cobra.Command{
+	var steps bool
+
+	cmd := &cobra.Command{
 		Use:   "export",
 		Short: "Export the trace of the current GitHub Actions run",
 		Long: `export reads the current run attempt and its jobs from the GitHub API (GITHUB_TOKEN) and exports
-a root span for the run and a span per job, the parents of the spans of the commands run with
-mtrx exec. Run it from the last job of the workflow: every other job must have completed.
+a root span for the run, a span per job, the parents of the spans of the commands run with
+mtrx exec, and a span per step of the jobs, the ones that ran. Run it from the last job of the
+workflow: every other job must have completed.
+
+--steps=false keeps the trace to the run and its jobs: the steps are the bulk of the spans of a
+large run, and the API only knows them to the second.
 
 The step outputs (GITHUB_OUTPUT) get the trace-id, the start-time-ms and end-time-ms of the root
-span in Unix milliseconds, and the job-count, for instance to link to the trace.`,
+span in Unix milliseconds, the job-count and the step-count, for instance to link to the trace.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return exportGitHubRun(cmd, version)
+			return exportGitHubRun(cmd, version, steps)
 		},
 	}
+	cmd.Flags().BoolVar(&steps, "steps", true, "export a span per step of the jobs")
+	return cmd
 }
 
-func exportGitHubRun(cmd *cobra.Command, version string) error {
+func exportGitHubRun(cmd *cobra.Command, version string, steps bool) error {
 	ctx := context.Background()
 
 	run, inGitHubActions := mtrxgithub.RunFromEnv()
@@ -108,12 +116,12 @@ func exportGitHubRun(cmd *cobra.Command, version string) error {
 		return err
 	}
 
-	exported, err := mtrxgithub.ExportRun(ctx, openTelemetry, client, run)
+	exported, err := mtrxgithub.ExportRun(ctx, openTelemetry, client, run, steps)
 	if err := errors.Join(err, openTelemetry.Shutdown(ctx), exportErr); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Exported trace %v: run %v attempt %v with %v job spans\n", exported.TraceID, run.ID, run.Attempt, exported.JobCount)
+	fmt.Fprintf(cmd.OutOrStdout(), "Exported trace %v: run %v attempt %v with %v job spans and %v step spans\n", exported.TraceID, run.ID, run.Attempt, exported.JobCount, exported.StepCount)
 
 	if outputPath := os.Getenv("GITHUB_OUTPUT"); outputPath != "" {
 		return mtrxgithub.AppendOutputs(outputPath, exported.Outputs())
