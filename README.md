@@ -187,8 +187,13 @@ These parents only exist once the run is exported, from the last job of the work
 ```
 
 `mtrx github export` reads the run and its jobs from the GitHub API and exports, under the service `github-actions`, a root
-span for the run and a span per job with their start and end times. A job that didn't succeed gets an error status,
-and so does the run.
+span for the run, a span per job with their start and end times, and a span per step of the jobs. A job that didn't
+succeed gets an error status, and so does the run; so does a failed step, without changing the run's status.
+
+The steps are the ones the jobs API reports: the ones that ran, `Set up job`, the `uses:` steps and their `Post` steps
+included, a composite action as a single step, and known to the second. The spans of `mtrx exec` stay children of the
+job's span, next to the step that ran them: the job doesn't know which step is running. `--steps=false` keeps the
+trace to the run and its jobs, the steps are the bulk of the spans of a large run.
 
 The step outputs get the exported trace, for instance to link to it in a tracing UI:
 
@@ -198,6 +203,7 @@ The step outputs get the exported trace, for instance to link to it in a tracing
 | `start-time-ms` | The start of the trace (the run attempt's start), in Unix milliseconds |
 | `end-time-ms`   | The end of the trace (the export), in Unix milliseconds                |
 | `job-count`     | The number of job spans exported                                       |
+| `step-count`    | The number of step spans exported                                      |
 
 ### Steps that mtrx exec can't wrap
 

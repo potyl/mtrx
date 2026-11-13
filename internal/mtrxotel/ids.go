@@ -19,6 +19,12 @@ func ContextWithSpanID(ctx context.Context, spanID trace.SpanID) context.Context
 	return context.WithValue(ctx, forcedSpanIDKey{}, spanID)
 }
 
+// Returns a context where the spans started get random ids again: the children of a span whose
+// id was forced with ContextWithSpanID would otherwise be forced to the same id.
+func ContextWithoutSpanID(ctx context.Context) context.Context {
+	return context.WithValue(ctx, forcedSpanIDKey{}, trace.SpanID{})
+}
+
 // Generates random ids unless the context forces them, see ContextWithSpanID.
 type idGenerator struct{}
 
