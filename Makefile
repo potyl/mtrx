@@ -76,7 +76,7 @@ build.all: linux darwin windows
 
 .PHONY: clean
 clean:
-	-rm -rf ${BUILD_DIR}
+	-rm -rf ${BUILD_DIR} ${NAME}
 
 .PHONY: linux
 linux: ${LINUX}
@@ -89,7 +89,7 @@ windows: ${WINDOWS}
 
 .PHONY: build
 build: ${GO_FILES}
-	@$(MAKE) compile file=mtrx GOOS=${BUILD_OS} GOARCH=${BUILD_ARCH}
+	@$(MAKE) compile file=${NAME} GOOS=${BUILD_OS} GOARCH=${BUILD_ARCH}
 
 ${LINUX_AMD64}: ${GO_FILES}
 	@$(MAKE) compile file=$@ GOOS=linux GOARCH=amd64
