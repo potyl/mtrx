@@ -1,8 +1,6 @@
 module mtrx
 
-go 1.26.0
-
-toolchain go1.26.9
+go 1.27.4
 
 require (
 	github.com/google/go-github/v92 v92.0.0
